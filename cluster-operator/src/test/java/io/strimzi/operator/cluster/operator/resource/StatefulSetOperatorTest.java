@@ -19,6 +19,7 @@ import io.vertx.core.Vertx;
 import io.vertx.ext.unit.TestContext;
 import org.junit.Test;
 
+import java.util.UUID;
 import java.util.function.BiPredicate;
 
 import static org.junit.Assert.assertTrue;
@@ -135,12 +136,12 @@ public class StatefulSetOperatorTest
             }
 
             @Override
-            protected Future<Integer> getGeneration(String namespace, String podName) {
-                return Future.succeededFuture(1);
+            protected Future<String> getUid(String namespace, String podName) {
+                return Future.succeededFuture(UUID.randomUUID().toString());
             }
         };
 
-        Future result = op.maybeRestartPod(resource, "my-pod-0");
+        Future result = op.maybeRestartPod(resource, "my-pod-0", false);
         assertTrue(result.succeeded());
     }
     @Test
@@ -175,13 +176,13 @@ public class StatefulSetOperatorTest
             }
 
             @Override
-            protected Future<Integer> getGeneration(String namespace, String podName) {
-                return Future.succeededFuture(1);
+            protected Future<String> getUid(String namespace, String podName) {
+                return Future.succeededFuture(UUID.randomUUID().toString());
             }
 
         };
 
-        Future result = op.maybeRestartPod(resource, "my-pod-0");
+        Future result = op.maybeRestartPod(resource, "my-pod-0", false);
         assertTrue(result.failed());
         assertTrue(result.cause() instanceof TimeoutException);
     }
@@ -218,12 +219,12 @@ public class StatefulSetOperatorTest
             }
 
             @Override
-            protected Future<Integer> getGeneration(String namespace, String podName) {
-                return Future.succeededFuture(1);
+            protected Future<String> getUid(String namespace, String podName) {
+                return Future.succeededFuture(UUID.randomUUID().toString());
             }
         };
 
-        Future result = op.maybeRestartPod(resource, "my-pod-0");
+        Future result = op.maybeRestartPod(resource, "my-pod-0", false);
         assertTrue(result.failed());
         assertTrue(result.cause() instanceof TimeoutException);
     }
@@ -260,12 +261,12 @@ public class StatefulSetOperatorTest
             }
 
             @Override
-            protected Future<Integer> getGeneration(String namespace, String podName) {
-                return Future.succeededFuture(1);
+            protected Future<String> getUid(String namespace, String podName) {
+                return Future.succeededFuture(UUID.randomUUID().toString());
             }
         };
 
-        Future result = op.maybeRestartPod(resource, "my-pod-0");
+        Future result = op.maybeRestartPod(resource, "my-pod-0", false);
         assertTrue(result.failed());
         assertTrue(result.cause().getMessage().equals("reconcile failed"));
     }

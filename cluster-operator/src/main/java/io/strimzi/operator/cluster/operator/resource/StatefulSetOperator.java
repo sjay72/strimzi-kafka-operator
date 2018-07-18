@@ -26,13 +26,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Operations for {@code StatefulSets}s, which supports {@link #maybeRollingUpdate(StatefulSet)}
+ * Operations for {@code StatefulSets}s, which supports {@link #maybeRollingUpdate(StatefulSet, boolean)}
  * in addition to the usual operations.
  */
 public abstract class StatefulSetOperator extends AbstractScalableResourceOperator<KubernetesClient, StatefulSet, StatefulSetList, DoneableStatefulSet, RollableScalableResource<StatefulSet, DoneableStatefulSet>> {
 
     public static final String ANNOTATION_GENERATION = ClusterOperator.STRIMZI_CLUSTER_OPERATOR_DOMAIN + "/statefulset-generation";
     private static final int NO_GENERATION = -1;
+    private static final String NO_UID = "NULL";
     private static final int INIT_GENERATION = 0;
 
     private static final Logger log = LogManager.getLogger(StatefulSetOperator.class.getName());
@@ -66,7 +67,7 @@ public abstract class StatefulSetOperator extends AbstractScalableResourceOperat
      * once the pod has been recreated then given {@code isReady} function will be polled until it returns true,
      * before the process proceeds with the pod with the next higher number.
      */
-    public Future<Void> maybeRollingUpdate(StatefulSet ss) {
+    public Future<Void> maybeRollingUpdate(StatefulSet ss, boolean forceRestart) {
         String namespace = ss.getMetadata().getNamespace();
         String name = ss.getMetadata().getName();
         final int replicas = ss.getSpec().getReplicas();
@@ -75,17 +76,17 @@ public abstract class StatefulSetOperator extends AbstractScalableResourceOperat
         // Then for each replica, maybe restart it
         for (int i = 0; i < replicas; i++) {
             String podName = name + "-" + i;
-            f = f.compose(ignored -> maybeRestartPod(ss, podName));
+            f = f.compose(ignored -> maybeRestartPod(ss, podName, forceRestart));
         }
         return f;
     }
 
-    public Future<Void> maybeRestartPod(StatefulSet ss, String podName) {
+    public Future<Void> maybeRestartPod(StatefulSet ss, String podName, boolean forceRestart) {
         long pollingIntervalMs = 1_000;
         long timeoutMs = operationTimeoutMs;
         String namespace = ss.getMetadata().getNamespace();
         String name = ss.getMetadata().getName();
-        if (isPodUpToDate(ss, podName)) {
+        if (isPodUpToDate(ss, podName) && !forceRestart) {
             log.debug("Rolling update of {}/{}: pod {} has {}={}; no need to roll",
                     namespace, name, podName, ANNOTATION_GENERATION, getSsGeneration(ss));
             return Future.succeededFuture();
@@ -95,7 +96,7 @@ public abstract class StatefulSetOperator extends AbstractScalableResourceOperat
             log.info("Rolling update of {}/{}: Rolling pod {}", namespace, name, podName);
 
             // Determine generation of deleted pod
-            Future<Integer> deleted = getGeneration(namespace, podName);
+            Future<String> deleted = getUid(namespace, podName);
 
             // Delete the pod
             Future<ReconcileResult<Pod>> podReconcileFuture = deleted.compose(l -> {
@@ -105,8 +106,8 @@ public abstract class StatefulSetOperator extends AbstractScalableResourceOperat
             }).compose(ignore -> {
                 Future del = podOperations.waitFor(namespace, name, pollingIntervalMs, timeoutMs, (ignore1, ignore2) -> {
                     // predicate - changed generation means pod has been updated
-                    int newGen = getPodGeneration(podOperations.get(namespace, podName));
-                    return deleted.result() != newGen;
+                    String newUid = getPodUid(podOperations.get(namespace, podName));
+                    return !deleted.result().equals(newUid);
                 });
                 log.debug("Rolling pod {} finished", podName);
                 return del;
@@ -280,14 +281,21 @@ public abstract class StatefulSetOperator extends AbstractScalableResourceOperat
         return new StatefulSetDiff(current, desired);
     }
 
-    protected Future<Integer> getGeneration(String namespace, String podName) {
-        Future<Integer> result = Future.future();
+    protected Future<String> getUid(String namespace, String podName) {
+        Future<String> result = Future.future();
         vertx.createSharedWorkerExecutor("kubernetes-ops-tool").executeBlocking(
             future -> {
-                int podGeneration = getPodGeneration(podOperations.get(namespace, podName));
-                future.complete(podGeneration);
+                String uid = getPodUid(podOperations.get(namespace, podName));
+                future.complete(uid);
             }, true, result.completer()
         );
         return result;
+    }
+
+    private static String getPodUid(Pod resource) {
+        if (resource == null || resource.getMetadata() == null) {
+            return NO_UID;
+        }
+        return resource.getMetadata().getUid();
     }
 }
