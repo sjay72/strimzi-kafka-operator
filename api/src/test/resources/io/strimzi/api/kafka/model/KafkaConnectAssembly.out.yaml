@@ -20,3 +20,6 @@ spec:
   metrics: {}
   config:
     name: "bar"
+  logging:
+    type: "inline"
+    loggers: {}

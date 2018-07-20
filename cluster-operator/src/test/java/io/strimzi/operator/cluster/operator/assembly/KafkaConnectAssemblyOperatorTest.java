@@ -111,7 +111,7 @@ public class KafkaConnectAssemblyOperatorTest {
                 metricsNames.add(KafkaConnectCluster.logAndMetricsConfigName(clusterCmName));
             }
 
-            // Vertify service
+            // Verify service
             List<Service> capturedServices = serviceCaptor.getAllValues();
             context.assertEquals(1, capturedServices.size());
             Service service = capturedServices.get(0);

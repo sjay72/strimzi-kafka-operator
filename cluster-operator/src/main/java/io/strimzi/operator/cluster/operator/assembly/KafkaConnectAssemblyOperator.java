@@ -32,7 +32,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * <p>Assembly operator for a "Kafka Connect" assembly, which manages:</p>
@@ -80,15 +82,26 @@ public class KafkaConnectAssemblyOperator extends AbstractAssemblyOperator<Kuber
             handler.handle(Future.failedFuture(e));
             return;
         }
+
         ConfigMap logAndMetricsConfigMap = connect.generateMetricsAndLogConfigMap(connect.getLogging() instanceof ExternalLogging ?
                 configMapOperations.get(namespace, ((ExternalLogging) connect.getLogging()).getName()) :
                 null);
+
+        log.info("karel logAndMetricsConfigMap.getData() {}", logAndMetricsConfigMap.getData());
+        log.info("karel KafkaConnectCluster.getConfigMap() {}", KafkaConnectCluster.getConfigMap());
+        Map<String, String> annotations = new HashMap();
+        if (!logAndMetricsConfigMap.getData().equals(KafkaConnectCluster.getConfigMap()) && KafkaConnectCluster.getConfigMap() != null) {
+            log.debug("ConfigMap change detected in KafkaConnectCluster {}", connect.getName());
+            annotations.put("strimzi.io/logging", logAndMetricsConfigMap.getData().toString());
+        }
+        KafkaConnectCluster.setConfigMap(logAndMetricsConfigMap.getData());
+
         log.debug("{}: Updating Kafka Connect cluster", reconciliation, name, namespace);
         Future<Void> chainFuture = Future.future();
         deploymentOperations.scaleDown(namespace, connect.getName(), connect.getReplicas())
                 .compose(scale -> serviceOperations.reconcile(namespace, connect.getServiceName(), connect.generateService()))
                 .compose(i -> configMapOperations.reconcile(namespace, connect.getAncillaryConfigName(), logAndMetricsConfigMap))
-                .compose(i -> deploymentOperations.reconcile(namespace, connect.getName(), connect.generateDeployment()))
+                .compose(i -> deploymentOperations.reconcile(namespace, connect.getName(), connect.generateDeployment(annotations)))
                 .compose(i -> deploymentOperations.scaleUp(namespace, connect.getName(), connect.getReplicas()).map((Void) null))
                 .compose(chainFuture::complete, chainFuture);
         chainFuture.setHandler(handler);

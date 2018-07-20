@@ -52,6 +52,7 @@ public class KafkaConnectCluster extends AbstractModel {
     protected static final String ENV_VAR_KAFKA_CONNECT_CONFIGURATION = "KAFKA_CONNECT_CONFIGURATION";
     protected static final String ENV_VAR_KAFKA_CONNECT_METRICS_ENABLED = "KAFKA_CONNECT_METRICS_ENABLED";
     protected static final String ENV_VAR_KAFKA_CONNECT_LOGGING = "KAFKA_CONNECT_LOGGING";
+    static Map<String, String> configMap;
 
     /**
      * Constructor
@@ -189,6 +190,13 @@ public class KafkaConnectCluster extends AbstractModel {
                 );
     }
 
+    public Deployment generateDeployment(Map<String, String> annotations) {
+        Deployment deployment = generateDeployment();
+        for (Map.Entry<String, String> entry: annotations.entrySet()) {
+            deployment.getSpec().getTemplate().getMetadata().getAnnotations().put(entry.getKey(), entry.getValue());
+        }
+        return deployment;
+    }
     @Override
     protected List<Container> getContainers() {
 
@@ -223,5 +231,13 @@ public class KafkaConnectCluster extends AbstractModel {
     @Override
     protected String getDefaultLogConfigFileName() {
         return "kafkaConnectDefaultLoggingProperties";
+    }
+
+    public static Map<String, String> getConfigMap() {
+        return configMap;
+    }
+
+    public static void setConfigMap(Map<String, String> configMap) {
+        KafkaConnectCluster.configMap = configMap;
     }
 }
