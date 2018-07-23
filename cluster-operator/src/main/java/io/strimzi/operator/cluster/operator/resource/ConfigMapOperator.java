@@ -33,12 +33,29 @@ public class ConfigMapOperator extends AbstractResourceOperator<KubernetesClient
 
     @Override
     protected Future<ReconcileResult<ConfigMap>> internalPatch(String namespace, String name, ConfigMap current, ConfigMap desired) {
+        boolean patch = false;
         try {
-            if (current.getData().equals(desired.getData())) {
+            if (!current.getData().equals(desired.getData())) {
+                patch = true;
+            }
+            if (!current.getAdditionalProperties().equals(desired.getAdditionalProperties())) {
+                patch = true;
+            }
+            if (!current.getMetadata().equals(desired.getMetadata())) {
+                patch = true;
+            }
+            if (!current.getApiVersion().equals(desired.getApiVersion())) {
+                patch = true;
+            }
+            if (!current.getKind().equals(desired.getKind())) {
+                patch = true;
+            }
+            if (!patch) {
                 log.debug("{} {} in namespace {} has not been patched because resources are equal", resourceKind, name, namespace);
                 return Future.succeededFuture(ReconcileResult.noop());
+            } else {
+                return super.internalPatch(namespace, name, current, desired);
             }
-            return super.internalPatch(namespace, name, current, desired);
         } catch (Exception e) {
             log.error("Caught exception while patching {} {} in namespace {}", resourceKind, name, namespace, e);
             return Future.failedFuture(e);
