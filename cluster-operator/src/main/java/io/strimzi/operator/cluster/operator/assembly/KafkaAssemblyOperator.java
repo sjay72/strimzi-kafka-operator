@@ -290,6 +290,12 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
         private final Secret topicOperatorSecret;
         private final ConfigMap metricsAndLogsConfigMap;
 
+        public boolean isForceRestart() {
+            return forceRestart;
+        }
+
+        private boolean forceRestart;
+
         TopicOperatorDescription(TopicOperator topicOperator, Deployment deployment,
                                  Secret topicOperatorSecret, ConfigMap metricsAndLogsConfigMap) {
             this.topicOperator = topicOperator;
@@ -302,7 +308,10 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
             return this.topicOperator;
         }
 
-        Deployment deployment() {
+        Deployment deployment(boolean forceRestart) {
+            if (forceRestart) {
+                this.deployment.getSpec().getTemplate().getMetadata().getAnnotations().put("strimzi.io/logging", this.metricsAndLogsConfigMap.getData().toString());
+            }
             return this.deployment;
         }
 
@@ -316,6 +325,13 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
 
         Future<TopicOperatorDescription> withVoid(Future<?> r) {
             return r.map(this);
+        }
+
+        Future<TopicOperatorDescription> withAncillaryCmChanged(Future<ReconcileResult<ConfigMap>> r) {
+            return r.map(rr -> {
+                this.forceRestart = rr instanceof ReconcileResult.Patched;
+                return this;
+            });
         }
     }
 
@@ -546,10 +562,10 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
                 .compose(desc -> desc.withVoid(roleBindingOperator.reconcile(namespace,
                         TopicOperator.TO_ROLE_BINDING_NAME,
                         desc != TopicOperatorDescription.EMPTY ? desc.topicOperator().generateRoleBinding(namespace) : null)))
-                .compose(desc -> desc.withVoid(configMapOperations.reconcile(namespace,
+                .compose(desc -> desc.withAncillaryCmChanged(configMapOperations.reconcile(namespace,
                         desc != TopicOperatorDescription.EMPTY ? desc.topicOperator().getAncillaryConfigName() : TopicOperator.metricAndLogConfigsName(name),
                         desc.metricsAndLogsConfigMap())))
-                .compose(desc -> desc.withVoid(deploymentOperations.reconcile(namespace, TopicOperator.topicOperatorName(name), desc.deployment())))
+                .compose(desc -> desc.withVoid(deploymentOperations.reconcile(namespace, TopicOperator.topicOperatorName(name), desc.deployment(desc.isForceRestart()))))
                 .compose(desc -> desc.withVoid(secretOperations.reconcile(namespace, TopicOperator.secretName(name), desc.topicOperatorSecret())))
                 .compose(desc -> chainFuture.complete(), chainFuture);
 

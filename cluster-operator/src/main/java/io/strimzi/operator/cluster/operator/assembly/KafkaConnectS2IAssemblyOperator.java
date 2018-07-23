@@ -34,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -97,10 +98,17 @@ public class KafkaConnectS2IAssemblyOperator extends AbstractAssemblyOperator<Op
                     configMapOperations.get(namespace, ((ExternalLogging) connect.getLogging()).getName()) :
                     null);
 
+            HashMap<String, String> annotations = new HashMap();
+            if (!logAndMetricsConfigMap.getData().equals(KafkaConnectS2ICluster.getConfigMap()) && KafkaConnectS2ICluster.getConfigMap() != null) {
+                log.debug("ConfigMap change detected in KafkaConnectCluster {}", connect.getName());
+                annotations.put("strimzi.io/logging", logAndMetricsConfigMap.getData().toString());
+            }
+            KafkaConnectS2ICluster.setConfigMap(logAndMetricsConfigMap.getData());
+
             deploymentConfigOperations.scaleDown(namespace, connect.getName(), connect.getReplicas())
                     .compose(scale -> serviceOperations.reconcile(namespace, connect.getServiceName(), connect.generateService()))
                     .compose(i -> configMapOperations.reconcile(namespace, connect.getAncillaryConfigName(), logAndMetricsConfigMap))
-                    .compose(i -> deploymentConfigOperations.reconcile(namespace, connect.getName(), connect.generateDeploymentConfig()))
+                    .compose(i -> deploymentConfigOperations.reconcile(namespace, connect.getName(), connect.generateDeploymentConfig(annotations)))
                     .compose(i -> imagesStreamOperations.reconcile(namespace, connect.getSourceImageStreamName(), connect.generateSourceImageStream()))
                     .compose(i -> imagesStreamOperations.reconcile(namespace, connect.getName(), connect.generateTargetImageStream()))
                     .compose(i -> buildConfigOperations.reconcile(namespace, connect.getName(), connect.generateBuildConfig()))

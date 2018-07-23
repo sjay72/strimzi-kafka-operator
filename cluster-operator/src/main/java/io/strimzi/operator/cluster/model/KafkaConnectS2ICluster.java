@@ -28,6 +28,8 @@ import io.fabric8.openshift.api.model.TagReferencePolicyBuilder;
 import io.strimzi.api.kafka.model.KafkaConnectS2IAssembly;
 import io.strimzi.api.kafka.model.KafkaConnectS2IAssemblySpec;
 
+import java.util.Map;
+
 public class KafkaConnectS2ICluster extends KafkaConnectCluster {
 
     // Kafka Connect S2I configuration
@@ -35,6 +37,7 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
     protected String sourceImageTag = DEFAULT_IMAGE.substring(DEFAULT_IMAGE.lastIndexOf(":") + 1);
     protected String tag = "latest";
     protected boolean insecureSourceRepository = false;
+    static Map<String, String> configMapS2I;
 
     // Configuration defaults
     protected static final String DEFAULT_IMAGE = System.getenv().getOrDefault("STRIMZI_DEFAULT_KAFKA_CONNECT_S2I_IMAGE", "strimzi/kafka-connect-s2i:latest");
@@ -128,6 +131,11 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
         return dc;
     }
 
+    public DeploymentConfig generateDeploymentConfig(Map annotations) {
+        DeploymentConfig deploymentConfig = generateDeploymentConfig();
+        deploymentConfig.getSpec().getTemplate().getMetadata().getAnnotations().putAll(annotations);
+        return deploymentConfig;
+    }
     /**
      * Generate new source ImageStream
      *
@@ -270,5 +278,13 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
      */
     public void setInsecureSourceRepository(boolean insecureSourceRepository) {
         this.insecureSourceRepository = insecureSourceRepository;
+    }
+
+    public static Map<String, String> getConfigMap() {
+        return KafkaConnectS2ICluster.configMapS2I;
+    }
+
+    public static void setConfigMap(Map<String, String> configMap) {
+        KafkaConnectS2ICluster.configMapS2I = configMap;
     }
 }

@@ -87,8 +87,6 @@ public class KafkaConnectAssemblyOperator extends AbstractAssemblyOperator<Kuber
                 configMapOperations.get(namespace, ((ExternalLogging) connect.getLogging()).getName()) :
                 null);
 
-        log.info("karel logAndMetricsConfigMap.getData() {}", logAndMetricsConfigMap.getData());
-        log.info("karel KafkaConnectCluster.getConfigMap() {}", KafkaConnectCluster.getConfigMap());
         Map<String, String> annotations = new HashMap();
         if (!logAndMetricsConfigMap.getData().equals(KafkaConnectCluster.getConfigMap()) && KafkaConnectCluster.getConfigMap() != null) {
             log.debug("ConfigMap change detected in KafkaConnectCluster {}", connect.getName());

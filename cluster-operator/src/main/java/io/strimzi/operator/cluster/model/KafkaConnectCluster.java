@@ -234,7 +234,7 @@ public class KafkaConnectCluster extends AbstractModel {
     }
 
     public static Map<String, String> getConfigMap() {
-        return configMap;
+        return KafkaConnectCluster.configMap;
     }
 
     public static void setConfigMap(Map<String, String> configMap) {

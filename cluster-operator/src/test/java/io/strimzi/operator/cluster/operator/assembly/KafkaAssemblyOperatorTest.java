@@ -653,7 +653,6 @@ public class KafkaAssemblyOperatorTest {
                     kafkaAssembly.getSpec().getKafka().getReplicas(),
                     kafkaAssembly.getSpec().getZookeeper().getReplicas());
             updateCluster(context, getKafkaAssembly("bar"), kafkaAssembly, secrets);
-
         }
     }
 
