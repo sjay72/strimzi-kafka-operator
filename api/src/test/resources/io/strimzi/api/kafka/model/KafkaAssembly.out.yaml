@@ -89,6 +89,3 @@ spec:
     zookeeperSessionTimeoutSeconds: 20
     topicMetadataMaxAttempts: 6
   someExtraThing: true
-  logging:
-    type: "inline"
-    loggers: {}

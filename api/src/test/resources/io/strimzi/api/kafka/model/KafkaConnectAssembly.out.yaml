@@ -17,9 +17,9 @@ spec:
     key: "key2"
     operator: "Equal"
     value: "value2"
-  metrics: {}
-  config:
-    name: "bar"
   logging:
     type: "inline"
     loggers: {}
+  metrics: {}
+  config:
+    name: "bar"

@@ -99,11 +99,7 @@ public class KafkaConnectS2IAssemblyOperator extends AbstractAssemblyOperator<Op
                     null);
 
             HashMap<String, String> annotations = new HashMap();
-            if (!logAndMetricsConfigMap.getData().equals(KafkaConnectS2ICluster.getConfigMap()) && KafkaConnectS2ICluster.getConfigMap() != null) {
-                log.debug("ConfigMap change detected in KafkaConnectCluster {}", connect.getName());
-                annotations.put("strimzi.io/logging", logAndMetricsConfigMap.getData().toString());
-            }
-            KafkaConnectS2ICluster.setConfigMap(logAndMetricsConfigMap.getData());
+            annotations.put("strimzi.io/logging", logAndMetricsConfigMap.getData().get(connect.ANCILLARY_CM_KEY_LOG_CONFIG));
 
             deploymentConfigOperations.scaleDown(namespace, connect.getName(), connect.getReplicas())
                     .compose(scale -> serviceOperations.reconcile(namespace, connect.getServiceName(), connect.generateService()))

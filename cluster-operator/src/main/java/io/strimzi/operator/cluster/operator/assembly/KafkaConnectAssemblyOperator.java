@@ -88,11 +88,7 @@ public class KafkaConnectAssemblyOperator extends AbstractAssemblyOperator<Kuber
                 null);
 
         Map<String, String> annotations = new HashMap();
-        if (!logAndMetricsConfigMap.getData().equals(KafkaConnectCluster.getConfigMap()) && KafkaConnectCluster.getConfigMap() != null) {
-            log.debug("ConfigMap change detected in KafkaConnectCluster {}", connect.getName());
-            annotations.put("strimzi.io/logging", logAndMetricsConfigMap.getData().toString());
-        }
-        KafkaConnectCluster.setConfigMap(logAndMetricsConfigMap.getData());
+        annotations.put("strimzi.io/logging", logAndMetricsConfigMap.getData().get(connect.ANCILLARY_CM_KEY_LOG_CONFIG));
 
         log.debug("{}: Updating Kafka Connect cluster", reconciliation, name, namespace);
         Future<Void> chainFuture = Future.future();

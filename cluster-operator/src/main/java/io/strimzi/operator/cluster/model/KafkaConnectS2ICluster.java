@@ -37,7 +37,6 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
     protected String sourceImageTag = DEFAULT_IMAGE.substring(DEFAULT_IMAGE.lastIndexOf(":") + 1);
     protected String tag = "latest";
     protected boolean insecureSourceRepository = false;
-    static Map<String, String> configMapS2I;
 
     // Configuration defaults
     protected static final String DEFAULT_IMAGE = System.getenv().getOrDefault("STRIMZI_DEFAULT_KAFKA_CONNECT_S2I_IMAGE", "strimzi/kafka-connect-s2i:latest");
@@ -68,7 +67,7 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
      *
      * @return      Source ImageStream resource definition
      */
-    public DeploymentConfig generateDeploymentConfig() {
+    public DeploymentConfig generateDeploymentConfig(Map<String, String> annotations) {
         Container container = new ContainerBuilder()
                 .withName(name)
                 .withImage(image)
@@ -114,6 +113,7 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
                     .withReplicas(replicas)
                     .withNewTemplate()
                         .withNewMetadata()
+                            .withAnnotations(annotations)
                             .withLabels(getLabelsWithName())
                         .endMetadata()
                         .withNewSpec()
@@ -127,15 +127,9 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
                 .withStrategy(updateStrategy)
                 .endSpec()
                 .build();
-
         return dc;
     }
 
-    public DeploymentConfig generateDeploymentConfig(Map annotations) {
-        DeploymentConfig deploymentConfig = generateDeploymentConfig();
-        deploymentConfig.getSpec().getTemplate().getMetadata().getAnnotations().putAll(annotations);
-        return deploymentConfig;
-    }
     /**
      * Generate new source ImageStream
      *
@@ -278,13 +272,5 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
      */
     public void setInsecureSourceRepository(boolean insecureSourceRepository) {
         this.insecureSourceRepository = insecureSourceRepository;
-    }
-
-    public static Map<String, String> getConfigMap() {
-        return KafkaConnectS2ICluster.configMapS2I;
-    }
-
-    public static void setConfigMap(Map<String, String> configMap) {
-        KafkaConnectS2ICluster.configMapS2I = configMap;
     }
 }

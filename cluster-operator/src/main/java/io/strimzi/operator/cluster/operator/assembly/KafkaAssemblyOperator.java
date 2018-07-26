@@ -310,7 +310,7 @@ public class KafkaAssemblyOperator extends AbstractAssemblyOperator<KubernetesCl
 
         Deployment deployment(boolean forceRestart) {
             if (forceRestart) {
-                this.deployment.getSpec().getTemplate().getMetadata().getAnnotations().put("strimzi.io/logging", this.metricsAndLogsConfigMap.getData().toString());
+                this.deployment.getSpec().getTemplate().getMetadata().getAnnotations().put("strimzi.io/logging", this.metricsAndLogsConfigMap.getData().get("log4j2.properties"));
             }
             return this.deployment;
         }

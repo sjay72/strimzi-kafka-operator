@@ -13,6 +13,9 @@ import io.fabric8.kubernetes.client.dsl.Resource;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 
+import java.util.Map;
+import java.util.Objects;
+
 /**
  * Operations for {@code ConfigMap}s.
  */
@@ -33,24 +36,14 @@ public class ConfigMapOperator extends AbstractResourceOperator<KubernetesClient
 
     @Override
     protected Future<ReconcileResult<ConfigMap>> internalPatch(String namespace, String name, ConfigMap current, ConfigMap desired) {
-        boolean patch = false;
         try {
-            if (!current.getData().equals(desired.getData())) {
-                patch = true;
-            }
-            if (!current.getAdditionalProperties().equals(desired.getAdditionalProperties())) {
-                patch = true;
-            }
-            if (!current.getMetadata().equals(desired.getMetadata())) {
-                patch = true;
-            }
-            if (!current.getApiVersion().equals(desired.getApiVersion())) {
-                patch = true;
-            }
-            if (!current.getKind().equals(desired.getKind())) {
-                patch = true;
-            }
-            if (!patch) {
+            if (compareObjects(current.getData(), desired.getData())
+                    && compareObjects(current.getMetadata().getName(), desired.getMetadata().getName())
+                    && compareObjects(current.getMetadata().getNamespace(), desired.getMetadata().getNamespace())
+                    && compareObjects(current.getMetadata().getAnnotations(), desired.getMetadata().getAnnotations())
+                    && compareObjects(current.getMetadata().getLabels(), desired.getMetadata().getLabels())) {
+                // Checking some metadata. We cannot check entire metadata object because it contains
+                // timestamps which would cause restarting loop
                 log.debug("{} {} in namespace {} has not been patched because resources are equal", resourceKind, name, namespace);
                 return Future.succeededFuture(ReconcileResult.noop());
             } else {
@@ -60,5 +53,24 @@ public class ConfigMapOperator extends AbstractResourceOperator<KubernetesClient
             log.error("Caught exception while patching {} {} in namespace {}", resourceKind, name, namespace, e);
             return Future.failedFuture(e);
         }
+    }
+
+    private boolean compareObjects(Object a, Object b) {
+        /*if (a instanceof Map || b instanceof Map) {
+            if (a == null && b != null) {
+                if (((HashMap) b).size() == 0) {
+                    return true;
+                }
+            }
+            if (b == null && a != null) {
+                if (((HashMap) a).size() == 0) {
+                    return true;
+                }
+            }
+        }
+        return a == null ? b == null : a.equals(b);*/
+        if (a == null && b instanceof Map && ((Map) b).size() == 0)
+            return true;
+        return !(a instanceof Map ^ b instanceof Map) && Objects.equals(a, b);
     }
 }
