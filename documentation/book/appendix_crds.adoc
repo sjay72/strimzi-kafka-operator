@@ -6,30 +6,30 @@
 |====
 |Field        |Description
 |spec  1.2+<.<|The specification of the Kafka and Zookeeper clusters, and Topic Operator.
-|<<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
+|xref:type-KafkaAssemblySpec[`KafkaAssemblySpec`]
 |====
 
 [[type-KafkaAssemblySpec]]
 ### `KafkaAssemblySpec` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-KafkaAssembly,`KafkaAssembly`>>
+Used in: xref:type-KafkaAssembly[`KafkaAssembly`]
 
 
 [options="header"]
 |====
 |Field                 |Description
 |kafka          1.2+<.<|Configuration of the Kafka cluster
-|<<type-Kafka,`Kafka`>>
+|xref:type-Kafka[`Kafka`]
 |zookeeper      1.2+<.<|Configuration of the Zookeeper cluster
-|<<type-Zookeeper,`Zookeeper`>>
+|xref:type-Zookeeper[`Zookeeper`]
 |topicOperator  1.2+<.<|Configuration of the Topic Operator
-|<<type-TopicOperator,`TopicOperator`>>
+|xref:type-TopicOperator[`TopicOperator`]
 |====
 
 [[type-Kafka]]
 ### `Kafka` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
+Used in: xref:type-KafkaAssemblySpec[`KafkaAssemblySpec`]
 
 
 [options="header"]
@@ -40,11 +40,11 @@ Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
 |image                1.2+<.<|The docker image for the pods.
 |string
 |storage              1.2+<.<|Storage configuration (disk). Cannot be updated. The type depends on the value of the `storage.type` property within the given object, which must be one of [ephemeral, persistent-claim]
-|<<type-EphemeralStorage,`EphemeralStorage`>>, <<type-PersistentClaimStorage,`PersistentClaimStorage`>>
+|xref:type-EphemeralStorage[`EphemeralStorage`], xref:type-PersistentClaimStorage[`PersistentClaimStorage`]
 |config               1.2+<.<|The kafka broker config. Properties with the following prefixes cannot be set: listeners, advertised., broker., listener.name.replication., listener.name.clienttls.ssl.truststore, listener.name.clienttls.ssl.keystore, host.name, port, inter.broker.listener.name, sasl., ssl., security., password., principal.builder.class, log.dir, zookeeper.connect, zookeeper.set.acl, super.user
 |map
 |rack                 1.2+<.<|Configuration of the `broker.rack` broker config.
-|<<type-Rack,`Rack`>>
+|xref:type-Rack[`Rack`]
 |brokerRackInitImage  1.2+<.<|The image of the init container used for initializing the `broker.rack`.
 |string
 |affinity             1.2+<.<|Pod affinity rules.See external documentation of https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#affinity-v1-core[core/v1 affinity]
@@ -56,28 +56,28 @@ Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
 
 |https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#tolerations-v1-core[Toleration] array
 |livenessProbe        1.2+<.<|Pod liveness checking.
-|<<type-Probe,`Probe`>>
+|xref:type-Probe[`Probe`]
 |readinessProbe       1.2+<.<|Pod readiness checking.
-|<<type-Probe,`Probe`>>
+|xref:type-Probe[`Probe`]
 |jvmOptions           1.2+<.<|JVM Options for pods
-|<<type-JvmOptions,`JvmOptions`>>
+|xref:type-JvmOptions[`JvmOptions`]
 |resources            1.2+<.<|Resource constraints (limits and requests).
-|<<type-Resources,`Resources`>>
+|xref:type-Resources[`Resources`]
 |metrics              1.2+<.<|The Prometheus JMX Exporter configuration. See https://github.com/prometheus/jmx_exporter for details of the structure of this configuration.
 |map
 |logging              1.2+<.<|Logging configuration for Kafka The type depends on the value of the `logging.type` property within the given object, which must be one of [inline, external]
-|<<type-InlineLogging,`InlineLogging`>>, <<type-ExternalLogging,`ExternalLogging`>>
+|xref:type-InlineLogging[`InlineLogging`], xref:type-ExternalLogging[`ExternalLogging`]
 |tlsSidecar           1.2+<.<|TLS sidecar configuration
-|<<type-Sidecar,`Sidecar`>>
+|xref:type-Sidecar[`Sidecar`]
 |====
 
 [[type-EphemeralStorage]]
 ### `EphemeralStorage` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>, <<type-Zookeeper,`Zookeeper`>>
+Used in: xref:type-Kafka[`Kafka`], xref:type-Zookeeper[`Zookeeper`]
 
 
-The `type` property is a discriminator that distinguishes the use of the type `EphemeralStorage` from <<type-PersistentClaimStorage,`PersistentClaimStorage`>>.
+The `type` property is a discriminator that distinguishes the use of the type `EphemeralStorage` from xref:type-PersistentClaimStorage[`PersistentClaimStorage`].
 It must have the value `ephemeral` for the type `EphemeralStorage`.
 [options="header"]
 |====
@@ -89,10 +89,10 @@ It must have the value `ephemeral` for the type `EphemeralStorage`.
 [[type-PersistentClaimStorage]]
 ### `PersistentClaimStorage` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>, <<type-Zookeeper,`Zookeeper`>>
+Used in: xref:type-Kafka[`Kafka`], xref:type-Zookeeper[`Zookeeper`]
 
 
-The `type` property is a discriminator that distinguishes the use of the type `PersistentClaimStorage` from <<type-EphemeralStorage,`EphemeralStorage`>>.
+The `type` property is a discriminator that distinguishes the use of the type `PersistentClaimStorage` from xref:type-EphemeralStorage[`EphemeralStorage`].
 It must have the value `persistent-claim` for the type `PersistentClaimStorage`.
 [options="header"]
 |====
@@ -112,7 +112,7 @@ It must have the value `persistent-claim` for the type `PersistentClaimStorage`.
 [[type-Rack]]
 ### `Rack` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>
+Used in: xref:type-Kafka[`Kafka`]
 
 
 [options="header"]
@@ -125,7 +125,7 @@ Used in: <<type-Kafka,`Kafka`>>
 [[type-Probe]]
 ### `Probe` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>, <<type-KafkaConnectAssemblySpec,`KafkaConnectAssemblySpec`>>, <<type-KafkaConnectS2IAssemblySpec,`KafkaConnectS2IAssemblySpec`>>, <<type-Zookeeper,`Zookeeper`>>
+Used in: xref:type-Kafka[`Kafka`], xref:type-KafkaConnectAssemblySpec[`KafkaConnectAssemblySpec`], xref:type-KafkaConnectS2IAssemblySpec[`KafkaConnectS2IAssemblySpec`], xref:type-Zookeeper[`Zookeeper`]
 
 
 [options="header"]
@@ -140,7 +140,7 @@ Used in: <<type-Kafka,`Kafka`>>, <<type-KafkaConnectAssemblySpec,`KafkaConnectAs
 [[type-JvmOptions]]
 ### `JvmOptions` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>, <<type-KafkaConnectAssemblySpec,`KafkaConnectAssemblySpec`>>, <<type-KafkaConnectS2IAssemblySpec,`KafkaConnectS2IAssemblySpec`>>, <<type-Zookeeper,`Zookeeper`>>
+Used in: xref:type-Kafka[`Kafka`], xref:type-KafkaConnectAssemblySpec[`KafkaConnectAssemblySpec`], xref:type-KafkaConnectS2IAssemblySpec[`KafkaConnectS2IAssemblySpec`], xref:type-Zookeeper[`Zookeeper`]
 
 
 [options="header"]
@@ -157,22 +157,22 @@ Used in: <<type-Kafka,`Kafka`>>, <<type-KafkaConnectAssemblySpec,`KafkaConnectAs
 [[type-Resources]]
 ### `Resources` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>, <<type-KafkaConnectAssemblySpec,`KafkaConnectAssemblySpec`>>, <<type-KafkaConnectS2IAssemblySpec,`KafkaConnectS2IAssemblySpec`>>, <<type-Sidecar,`Sidecar`>>, <<type-TopicOperator,`TopicOperator`>>, <<type-Zookeeper,`Zookeeper`>>
+Used in: xref:type-Kafka[`Kafka`], xref:type-KafkaConnectAssemblySpec[`KafkaConnectAssemblySpec`], xref:type-KafkaConnectS2IAssemblySpec[`KafkaConnectS2IAssemblySpec`], xref:type-Sidecar[`Sidecar`], xref:type-TopicOperator[`TopicOperator`], xref:type-Zookeeper[`Zookeeper`]
 
 
 [options="header"]
 |====
 |Field            |Description
 |limits    1.2+<.<|Resource limits applied at runtime.
-|<<type-CpuMemory,`CpuMemory`>>
+|xref:type-CpuMemory[`CpuMemory`]
 |requests  1.2+<.<|Resource requests applied during pod scheduling.
-|<<type-CpuMemory,`CpuMemory`>>
+|xref:type-CpuMemory[`CpuMemory`]
 |====
 
 [[type-CpuMemory]]
 ### `CpuMemory` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Resources,`Resources`>>
+Used in: xref:type-Resources[`Resources`]
 
 
 [options="header"]
@@ -187,10 +187,10 @@ Used in: <<type-Resources,`Resources`>>
 [[type-InlineLogging]]
 ### `InlineLogging` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>, <<type-KafkaConnectAssemblySpec,`KafkaConnectAssemblySpec`>>, <<type-KafkaConnectS2IAssemblySpec,`KafkaConnectS2IAssemblySpec`>>, <<type-TopicOperator,`TopicOperator`>>, <<type-Zookeeper,`Zookeeper`>>
+Used in: xref:type-Kafka[`Kafka`], xref:type-KafkaConnectAssemblySpec[`KafkaConnectAssemblySpec`], xref:type-KafkaConnectS2IAssemblySpec[`KafkaConnectS2IAssemblySpec`], xref:type-TopicOperator[`TopicOperator`], xref:type-Zookeeper[`Zookeeper`]
 
 
-The `type` property is a discriminator that distinguishes the use of the type `InlineLogging` from <<type-ExternalLogging,`ExternalLogging`>>.
+The `type` property is a discriminator that distinguishes the use of the type `InlineLogging` from xref:type-ExternalLogging[`ExternalLogging`].
 It must have the value `inline` for the type `InlineLogging`.
 [options="header"]
 |====
@@ -204,10 +204,10 @@ It must have the value `inline` for the type `InlineLogging`.
 [[type-ExternalLogging]]
 ### `ExternalLogging` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>, <<type-KafkaConnectAssemblySpec,`KafkaConnectAssemblySpec`>>, <<type-KafkaConnectS2IAssemblySpec,`KafkaConnectS2IAssemblySpec`>>, <<type-TopicOperator,`TopicOperator`>>, <<type-Zookeeper,`Zookeeper`>>
+Used in: xref:type-Kafka[`Kafka`], xref:type-KafkaConnectAssemblySpec[`KafkaConnectAssemblySpec`], xref:type-KafkaConnectS2IAssemblySpec[`KafkaConnectS2IAssemblySpec`], xref:type-TopicOperator[`TopicOperator`], xref:type-Zookeeper[`Zookeeper`]
 
 
-The `type` property is a discriminator that distinguishes the use of the type `ExternalLogging` from <<type-InlineLogging,`InlineLogging`>>.
+The `type` property is a discriminator that distinguishes the use of the type `ExternalLogging` from xref:type-InlineLogging[`InlineLogging`].
 It must have the value `external` for the type `ExternalLogging`.
 [options="header"]
 |====
@@ -221,7 +221,7 @@ It must have the value `external` for the type `ExternalLogging`.
 [[type-Sidecar]]
 ### `Sidecar` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-Kafka,`Kafka`>>, <<type-TopicOperator,`TopicOperator`>>, <<type-Zookeeper,`Zookeeper`>>
+Used in: xref:type-Kafka[`Kafka`], xref:type-TopicOperator[`TopicOperator`], xref:type-Zookeeper[`Zookeeper`]
 
 
 [options="header"]
@@ -230,13 +230,13 @@ Used in: <<type-Kafka,`Kafka`>>, <<type-TopicOperator,`TopicOperator`>>, <<type-
 |image      1.2+<.<|The docker image for the container
 |string
 |resources  1.2+<.<|Resource constraints (limits and requests).
-|<<type-Resources,`Resources`>>
+|xref:type-Resources[`Resources`]
 |====
 
 [[type-Zookeeper]]
 ### `Zookeeper` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
+Used in: xref:type-KafkaAssemblySpec[`KafkaAssemblySpec`]
 
 
 [options="header"]
@@ -247,7 +247,7 @@ Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
 |image           1.2+<.<|The docker image for the pods.
 |string
 |storage         1.2+<.<|Storage configuration (disk). Cannot be updated. The type depends on the value of the `storage.type` property within the given object, which must be one of [ephemeral, persistent-claim]
-|<<type-EphemeralStorage,`EphemeralStorage`>>, <<type-PersistentClaimStorage,`PersistentClaimStorage`>>
+|xref:type-EphemeralStorage[`EphemeralStorage`], xref:type-PersistentClaimStorage[`PersistentClaimStorage`]
 |config          1.2+<.<|The zookeeper broker config. Properties with the following prefixes cannot be set: server., dataDir, dataLogDir, clientPort, authProvider, quorum.auth, requireClientAuthScheme
 |map
 |affinity        1.2+<.<|Pod affinity rules.See external documentation of https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#affinity-v1-core[core/v1 affinity]
@@ -259,25 +259,25 @@ Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
 
 |https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#tolerations-v1-core[Toleration] array
 |livenessProbe   1.2+<.<|Pod liveness checking.
-|<<type-Probe,`Probe`>>
+|xref:type-Probe[`Probe`]
 |readinessProbe  1.2+<.<|Pod readiness checking.
-|<<type-Probe,`Probe`>>
+|xref:type-Probe[`Probe`]
 |jvmOptions      1.2+<.<|JVM Options for pods
-|<<type-JvmOptions,`JvmOptions`>>
+|xref:type-JvmOptions[`JvmOptions`]
 |resources       1.2+<.<|Resource constraints (limits and requests).
-|<<type-Resources,`Resources`>>
+|xref:type-Resources[`Resources`]
 |metrics         1.2+<.<|The Prometheus JMX Exporter configuration. See https://github.com/prometheus/jmx_exporter for details of the structure of this configuration.
 |map
 |logging         1.2+<.<|Logging configuration for Zookeeper The type depends on the value of the `logging.type` property within the given object, which must be one of [inline, external]
-|<<type-InlineLogging,`InlineLogging`>>, <<type-ExternalLogging,`ExternalLogging`>>
+|xref:type-InlineLogging[`InlineLogging`], xref:type-ExternalLogging[`ExternalLogging`]
 |tlsSidecar      1.2+<.<|TLS sidecar configuration
-|<<type-Sidecar,`Sidecar`>>
+|xref:type-Sidecar[`Sidecar`]
 |====
 
 [[type-TopicOperator]]
 ### `TopicOperator` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
+Used in: xref:type-KafkaAssemblySpec[`KafkaAssemblySpec`]
 
 
 [options="header"]
@@ -296,13 +296,13 @@ Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
 
 |https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#affinity-v1-core[Affinity]
 |resources                       1.2+<.<|Resource constraints (limits and requests).
-|<<type-Resources,`Resources`>>
+|xref:type-Resources[`Resources`]
 |topicMetadataMaxAttempts        1.2+<.<|The number of attempts at getting topic metadata
 |integer
 |tlsSidecar                      1.2+<.<|TLS sidecar configuration
-|<<type-Sidecar,`Sidecar`>>
+|xref:type-Sidecar[`Sidecar`]
 |logging                         1.2+<.<|Logging configuration The type depends on the value of the `logging.type` property within the given object, which must be one of [inline, external]
-|<<type-InlineLogging,`InlineLogging`>>, <<type-ExternalLogging,`ExternalLogging`>>
+|xref:type-InlineLogging[`InlineLogging`], xref:type-ExternalLogging[`ExternalLogging`]
 |====
 
 [[type-KafkaConnectAssembly]]
@@ -313,13 +313,13 @@ Used in: <<type-KafkaAssemblySpec,`KafkaAssemblySpec`>>
 |====
 |Field        |Description
 |spec  1.2+<.<|The specification of the Kafka Connect deployment.
-|<<type-KafkaConnectAssemblySpec,`KafkaConnectAssemblySpec`>>
+|xref:type-KafkaConnectAssemblySpec[`KafkaConnectAssemblySpec`]
 |====
 
 [[type-KafkaConnectAssemblySpec]]
 ### `KafkaConnectAssemblySpec` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-KafkaConnectAssembly,`KafkaConnectAssembly`>>
+Used in: xref:type-KafkaConnectAssembly[`KafkaConnectAssembly`]
 
 
 [options="header"]
@@ -330,11 +330,11 @@ Used in: <<type-KafkaConnectAssembly,`KafkaConnectAssembly`>>
 |image           1.2+<.<|The docker image for the pods.
 |string
 |livenessProbe   1.2+<.<|Pod liveness checking.
-|<<type-Probe,`Probe`>>
+|xref:type-Probe[`Probe`]
 |readinessProbe  1.2+<.<|Pod readiness checking.
-|<<type-Probe,`Probe`>>
+|xref:type-Probe[`Probe`]
 |jvmOptions      1.2+<.<|JVM Options for pods
-|<<type-JvmOptions,`JvmOptions`>>
+|xref:type-JvmOptions[`JvmOptions`]
 |affinity        1.2+<.<|Pod affinity rules.See external documentation of https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#affinity-v1-core[core/v1 affinity]
 
 
@@ -344,13 +344,13 @@ Used in: <<type-KafkaConnectAssembly,`KafkaConnectAssembly`>>
 
 |https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#tolerations-v1-core[Toleration] array
 |logging         1.2+<.<|Logging configuration for Kafka Connect The type depends on the value of the `logging.type` property within the given object, which must be one of [inline, external]
-|<<type-InlineLogging,`InlineLogging`>>, <<type-ExternalLogging,`ExternalLogging`>>
+|xref:type-InlineLogging[`InlineLogging`], xref:type-ExternalLogging[`ExternalLogging`]
 |metrics         1.2+<.<|The Prometheus JMX Exporter configuration. See https://github.com/prometheus/jmx_exporter for details of the structure of this configuration.
 |map
 |config          1.2+<.<|The Kafka Connect configuration. Properties with the following prefixes cannot be set: ssl., sasl., security., listeners, plugin.path, rest.
 |map
 |resources       1.2+<.<|Resource constraints (limits and requests).
-|<<type-Resources,`Resources`>>
+|xref:type-Resources[`Resources`]
 |====
 
 [[type-KafkaConnectS2IAssembly]]
@@ -361,13 +361,13 @@ Used in: <<type-KafkaConnectAssembly,`KafkaConnectAssembly`>>
 |====
 |Field        |Description
 |spec  1.2+<.<|The specification of the Kafka Connect deployment.
-|<<type-KafkaConnectS2IAssemblySpec,`KafkaConnectS2IAssemblySpec`>>
+|xref:type-KafkaConnectS2IAssemblySpec[`KafkaConnectS2IAssemblySpec`]
 |====
 
 [[type-KafkaConnectS2IAssemblySpec]]
 ### `KafkaConnectS2IAssemblySpec` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-KafkaConnectS2IAssembly,`KafkaConnectS2IAssembly`>>
+Used in: xref:type-KafkaConnectS2IAssembly[`KafkaConnectS2IAssembly`]
 
 
 [options="header"]
@@ -378,11 +378,11 @@ Used in: <<type-KafkaConnectS2IAssembly,`KafkaConnectS2IAssembly`>>
 |image                     1.2+<.<|The docker image for the pods.
 |string
 |livenessProbe             1.2+<.<|Pod liveness checking.
-|<<type-Probe,`Probe`>>
+|xref:type-Probe[`Probe`]
 |readinessProbe            1.2+<.<|Pod readiness checking.
-|<<type-Probe,`Probe`>>
+|xref:type-Probe[`Probe`]
 |jvmOptions                1.2+<.<|JVM Options for pods
-|<<type-JvmOptions,`JvmOptions`>>
+|xref:type-JvmOptions[`JvmOptions`]
 |affinity                  1.2+<.<|Pod affinity rules.See external documentation of https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#affinity-v1-core[core/v1 affinity]
 
 
@@ -394,9 +394,9 @@ Used in: <<type-KafkaConnectS2IAssembly,`KafkaConnectS2IAssembly`>>
 |insecureSourceRepository  1.2+<.<|When true this configures the source repository with the 'Local' reference policy and an import policy that accepts insecure source tags.
 |boolean
 |logging                   1.2+<.<|Logging configuration for Kafka Connect The type depends on the value of the `logging.type` property within the given object, which must be one of [inline, external]
-|<<type-InlineLogging,`InlineLogging`>>, <<type-ExternalLogging,`ExternalLogging`>>
+|xref:type-InlineLogging[`InlineLogging`], xref:type-ExternalLogging[`ExternalLogging`]
 |resources                 1.2+<.<|Resource constraints (limits and requests).
-|<<type-Resources,`Resources`>>
+|xref:type-Resources[`Resources`]
 |tolerations               1.2+<.<|Pod's tolerations.See external documentation of https://v1-9.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#tolerations-v1-core[core/v1 tolerations]
 
 
@@ -411,13 +411,13 @@ Used in: <<type-KafkaConnectS2IAssembly,`KafkaConnectS2IAssembly`>>
 |====
 |Field        |Description
 |spec  1.2+<.<|The specification of the topic.
-|<<type-KafkaTopicSpec,`KafkaTopicSpec`>>
+|xref:type-KafkaTopicSpec[`KafkaTopicSpec`]
 |====
 
 [[type-KafkaTopicSpec]]
 ### `KafkaTopicSpec` type v1alpha1 kafka.strimzi.io
 
-Used in: <<type-KafkaTopic,`KafkaTopic`>>
+Used in: xref:type-KafkaTopic[`KafkaTopic`]
 
 
 [options="header"]
