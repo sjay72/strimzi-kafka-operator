@@ -665,6 +665,9 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
                 // Here we record the state of the cluster
                 LOGGER.info("Creating cluster operator with Helm Chart {} before test per @ClusterOperator annotation on {}", cc, name(element));
                 Path pathToChart = new File(HELM_CHART).toPath();
+                String oldNamespace = kubeClient().namespace("kube-system");
+                kubeClient().applyContent(TestUtils.readFile(getClass().getClassLoader().getResource("helm-service-account.yaml").getFile()));
+                kubeClient().namespace(oldNamespace);
                 helmClient().init();
                 helmClient().install(pathToChart, HELM_RELEASE_NAME, allValues);
             }
