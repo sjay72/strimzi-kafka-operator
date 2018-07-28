@@ -4,9 +4,6 @@
  */
 package io.strimzi.systemtest;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.jayway.jsonpath.JsonPath;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.Event;
@@ -21,10 +18,13 @@ import io.fabric8.kubernetes.client.dsl.Resource;
 import io.strimzi.api.kafka.Crds;
 import io.strimzi.api.kafka.DoneableKafkaAssembly;
 import io.strimzi.api.kafka.DoneableKafkaConnectAssembly;
+import io.strimzi.api.kafka.DoneableKafkaTopic;
 import io.strimzi.api.kafka.KafkaAssemblyList;
 import io.strimzi.api.kafka.KafkaConnectAssemblyList;
+import io.strimzi.api.kafka.KafkaTopicList;
 import io.strimzi.api.kafka.model.KafkaAssembly;
 import io.strimzi.api.kafka.model.KafkaConnectAssembly;
+import io.strimzi.api.kafka.model.KafkaTopic;
 import io.strimzi.test.TestUtils;
 import io.strimzi.test.k8s.KubeClient;
 import io.strimzi.test.k8s.KubeClusterException;
@@ -36,9 +36,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.Stopwatch;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,12 +60,18 @@ public class AbstractClusterIT {
     }
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractClusterIT.class);
+    protected static final String CLUSTER_NAME = "my-cluster";
     protected static final String ZK_IMAGE = "STRIMZI_DEFAULT_ZOOKEEPER_IMAGE";
     protected static final String KAFKA_IMAGE = "STRIMZI_DEFAULT_KAFKA_IMAGE";
     protected static final String CONNECT_IMAGE = "STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE";
     protected static final String S2I_IMAGE = "STRIMZI_DEFAULT_KAFKA_CONNECT_S2I_IMAGE";
     protected static final String TO_IMAGE = "STRIMZI_DEFAULT_TOPIC_OPERATOR_IMAGE";
     protected static final String INIT_KAFKA_IMAGE = "STRIMZI_DEFAULT_INIT_KAFKA_IMAGE";
+    protected static final String TEST_TOPIC_NAME = "test-topic";
+    protected static final String KAFKA_INIT_IMAGE = "STRIMZI_DEFAULT_KAFKA_INIT_IMAGE";
+    protected static final String TLS_SIDECAR_ZOOKEEPER_IMAGE = "STRIMZI_DEFAULT_TLS_SIDECAR_ZOOKEEPER_IMAGE";
+    protected static final String TLS_SIDECAR_KAFKA_IMAGE = "STRIMZI_DEFAULT_TLS_SIDECAR_KAFKA_IMAGE";
+    protected static final String TLS_SIDECAR_TO_IMAGE = "STRIMZI_DEFAULT_TLS_SIDECAR_TOPIC_OPERATOR_IMAGE";
 
     @Rule
     public Stopwatch stopwatch = new Stopwatch() {
@@ -80,7 +84,6 @@ public class AbstractClusterIT {
     static KubernetesClient client = new DefaultKubernetesClient();
     KubeClient<?> kubeClient = cluster.client();
 
-    // can be used as kafka stateful set or service names
     static String kafkaClusterName(String clusterName) {
         return clusterName + "-kafka";
     }
@@ -93,19 +96,18 @@ public class AbstractClusterIT {
         return kafkaClusterName(clusterName) + "-" + podId;
     }
 
+    static String kafkaServiceName(String clusterName) {
+        return kafkaClusterName(clusterName) + "-bootstrap";
+    }
+
     static String kafkaHeadlessServiceName(String clusterName) {
-        return kafkaClusterName(clusterName) + "-headless";
+        return kafkaClusterName(clusterName) + "-brokers";
     }
 
     static String kafkaMetricsConfigName(String clusterName) {
-        return kafkaClusterName(clusterName) + "-metrics-config";
+        return kafkaClusterName(clusterName) + "-config";
     }
 
-    static String kafkaPVCName(String clusterName, int podId) {
-        return "data-" + kafkaClusterName(clusterName) + "-" + podId;
-    }
-
-    // can be used as zookeeper stateful set or service names
     static String zookeeperClusterName(String clusterName) {
         return clusterName + "-zookeeper";
     }
@@ -114,12 +116,16 @@ public class AbstractClusterIT {
         return zookeeperClusterName(clusterName) + "-" + podId;
     }
 
+    static String zookeeperServiceName(String clusterName) {
+        return zookeeperClusterName(clusterName) + "-client";
+    }
+
     static String zookeeperHeadlessServiceName(String clusterName) {
-        return zookeeperClusterName(clusterName) + "-headless";
+        return zookeeperClusterName(clusterName) + "-nodes";
     }
 
     static String zookeeperMetricsConfigName(String clusterName) {
-        return zookeeperClusterName(clusterName) + "-metrics-config";
+        return zookeeperClusterName(clusterName) + "-config";
     }
 
     static String zookeeperPVCName(String clusterName, int podId) {
@@ -128,32 +134,6 @@ public class AbstractClusterIT {
 
     static String topicOperatorDeploymentName(String clusterName) {
         return clusterName + "-topic-operator";
-    }
-
-    /** @deprecated  Remove once Topics have a CRD */
-    @Deprecated
-    void replaceCm(String cmName, String fieldName, String fieldValue) {
-        replaceCm(cmName, Collections.singletonMap(fieldName, fieldValue));
-    }
-
-    /** @deprecated  Remove once Topics have a CRD */
-    @Deprecated
-    void replaceCm(String cmName, Map<String, String> changes) {
-        try {
-            String jsonString = kubeClient.get("cm", cmName);
-            YAMLMapper mapper = new YAMLMapper();
-            JsonNode node = mapper.readTree(jsonString);
-
-            for (Map.Entry<String, String> change : changes.entrySet()) {
-                ((ObjectNode) node.get("data")).put(change.getKey(), change.getValue());
-            }
-
-            String content = mapper.writeValueAsString(node);
-            kubeClient.replaceContent(content);
-            LOGGER.info("Value in ConfigMap replaced");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private <T extends CustomResource, L extends CustomResourceList<T>, D extends CustomResourceDoneable<T>>
@@ -172,11 +152,15 @@ public class AbstractClusterIT {
         replaceCrdResource(KafkaConnectAssembly.class, KafkaConnectAssemblyList.class, DoneableKafkaConnectAssembly.class, resourceName, editor);
     }
 
+    void replaceTopicResource(String resourceName, Consumer<KafkaTopic> editor) {
+        replaceCrdResource(KafkaTopic.class, KafkaTopicList.class, DoneableKafkaTopic.class, resourceName, editor);
+    }
+
     String getBrokerApiVersions(String podName) {
         AtomicReference<String> versions = new AtomicReference<>();
         TestUtils.waitFor("kafka-broker-api-versions.sh success", 1_000L, 30_000L, () -> {
             try {
-                String output = kubeClient.exec(podName,
+                String output = kubeClient.execInPod(podName,
                         "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092").out();
                 versions.set(output);
                 return true;
@@ -188,27 +172,32 @@ public class AbstractClusterIT {
         return versions.get();
     }
 
-    void waitForZkMntr(String pod, Pattern pattern) {
+    void waitForZkMntr(Pattern pattern, int... podIndexes) {
         long timeoutMs = 120_000L;
         long pollMs = 1_000L;
-        TestUtils.waitFor("mntr", pollMs, timeoutMs, () -> {
-            try {
-                String output = kubeClient.exec(pod,
-                    "/bin/bash", "-c", "echo mntr | nc localhost 2181").out();
 
-                if (pattern.matcher(output).find()) {
-                    return true;
+        for (int podIndex : podIndexes) {
+            String zookeeperPod = zookeeperPodName(CLUSTER_NAME, podIndex);
+            String zookeeperPort = String.valueOf(2181 * 10 + podIndex);
+            TestUtils.waitFor("mntr", pollMs, timeoutMs, () -> {
+                try {
+                    String output = kubeClient.execInPod(zookeeperPod,
+                        "/bin/bash", "-c", "echo mntr | nc localhost " + zookeeperPort).out();
+
+                    if (pattern.matcher(output).find()) {
+                        return true;
+                    }
+                } catch (KubeClusterException e) {
+                    LOGGER.trace("Exception while waiting for ZK to become leader/follower, ignoring", e);
                 }
-            } catch (KubeClusterException e) {
-                LOGGER.trace("Exception while waiting for ZK to become leader/follower, ignoring", e);
-            }
                 return false;
-            },
-            () -> LOGGER.info("zookeeper `mntr` output at the point of timeout does not match {}:{}{}",
-                pattern.pattern(),
-                System.lineSeparator(),
-                indent(kubeClient.exec(pod, "/bin/bash", "-c", "echo mntr | nc localhost 2181").out()))
-        );
+                },
+                () -> LOGGER.info("zookeeper `mntr` output at the point of timeout does not match {}:{}{}",
+                    pattern.pattern(),
+                    System.lineSeparator(),
+                    indent(kubeClient.execInPod(zookeeperPod, "/bin/bash", "-c", "echo mntr | nc localhost " + zookeeperPort).out()))
+            );
+        }
     }
 
     String getValueFromJson(String json, String jsonPath) {
@@ -228,21 +217,21 @@ public class AbstractClusterIT {
                 .collect(Collectors.toList());
     }
 
-    public void sendMessages(String clusterName, String topic, int messagesCount, int kafkaPodID) {
+    public void sendMessages(String podName, String clusterName, String topic, int messagesCount) {
         LOGGER.info("Sending messages");
         String command = "sh bin/kafka-verifiable-producer.sh --broker-list " +
-                clusterName + "-kafka:9092 --topic " + topic + " --max-messages " + messagesCount + "";
+                clusterName + "-kafka-bootstrap:9092 --topic " + topic + " --max-messages " + messagesCount + "";
 
         LOGGER.info("Command for kafka-verifiable-producer.sh {}", command);
 
-        kubeClient.exec(kafkaPodName(clusterName, kafkaPodID), "/bin/bash", "-c", command);
+        kubeClient.execInPod(podName, "/bin/bash", "-c", command);
     }
 
     public String consumeMessages(String clusterName, String topic, int groupID, int timeout, int kafkaPodID) {
         LOGGER.info("Consuming messages");
-        String output = kubeClient.exec(kafkaPodName(clusterName, kafkaPodID), "/bin/bash", "-c",
+        String output = kubeClient.execInPod(kafkaPodName(clusterName, kafkaPodID), "/bin/bash", "-c",
                 "bin/kafka-verifiable-consumer.sh --broker-list " + clusterName +
-                        "-kafka:9092 --topic " + topic + " --group-id " + groupID + " & sleep "
+                        "-kafka-bootstrap:9092 --topic " + topic + " --group-id " + groupID + " & sleep "
                         + timeout + "; kill %1").out();
         output = "[" + output.replaceAll("\n", ",") + "]";
         LOGGER.info("Output for kafka-verifiable-consumer.sh {}", output);
@@ -291,7 +280,7 @@ public class AbstractClusterIT {
 
     private List<List<String>> commandLines(String podName, String cmd) {
         List<List<String>> result = new ArrayList<>();
-        ProcessResult pr = kubeClient.exec(podName, "/bin/bash", "-c",
+        ProcessResult pr = kubeClient.execInPod(podName, "/bin/bash", "-c",
                 "for pid in $(ps -C java -o pid h); do cat /proc/$pid/cmdline; done"
         );
         for (String cmdLine : pr.out().split("\n")) {
@@ -305,30 +294,40 @@ public class AbstractClusterIT {
         assertThat(clusterOperatorLog, logHasNoUnexpectedErrors());
     }
 
-    public List<String> listTopicsUsingPodCLI(String clusterName, String podName) {
-        return asList(kubeClient.exec(podName, "/bin/bash", "-c",
-                "bin/kafka-topics.sh --list --zookeeper " + clusterName + "-zookeeper:2181").out().split("\\s+"));
+    public List<String> listTopicsUsingPodCLI(String clusterName, int zkPodId) {
+        String podName = zookeeperPodName(clusterName, zkPodId);
+        int port = 2181 * 10 + zkPodId;
+        return asList(kubeClient.execInPod(podName, "/bin/bash", "-c",
+                "bin/kafka-topics.sh --list --zookeeper localhost:" + port).out().split("\\s+"));
     }
 
-    public String createTopicUsingPodCLI(String clusterName, String podName, String topic, int replicationFactor, int partitions) {
-        return kubeClient.exec(podName, "/bin/bash", "-c",
-                "bin/kafka-topics.sh --zookeeper " + clusterName + "-zookeeper:2181  --create " + " --topic " + topic +
+    public String createTopicUsingPodCLI(String clusterName, int zkPodId, String topic, int replicationFactor, int partitions) {
+        String podName = zookeeperPodName(clusterName, zkPodId);
+        int port = 2181 * 10 + zkPodId;
+        return kubeClient.execInPod(podName, "/bin/bash", "-c",
+                "bin/kafka-topics.sh --zookeeper localhost:" + port + " --create " + " --topic " + topic +
                         " --replication-factor " + replicationFactor + " --partitions " + partitions).out();
     }
 
-    public String deleteTopicUsingPodCLI(String clusterName, String podName, String topic) {
-        return kubeClient.exec(podName, "/bin/bash", "-c",
-                "bin/kafka-topics.sh --zookeeper " + clusterName + "-zookeeper:2181 --delete --topic " + topic).out();
+    public String deleteTopicUsingPodCLI(String clusterName, int zkPodId, String topic) {
+        String podName = zookeeperPodName(clusterName, zkPodId);
+        int port = 2181 * 10 + zkPodId;
+        return kubeClient.execInPod(podName, "/bin/bash", "-c",
+                "bin/kafka-topics.sh --zookeeper localhost:" + port + " --delete --topic " + topic).out();
     }
 
-    public List<String>  describeTopicUsingPodCLI(String clusterName, String podName, String topic) {
-        return asList(kubeClient.exec(podName, "/bin/bash", "-c",
-                "bin/kafka-topics.sh --zookeeper " + clusterName + "-zookeeper:2181 --describe --topic " + topic).out().split("\\s+"));
+    public List<String>  describeTopicUsingPodCLI(String clusterName, int zkPodId, String topic) {
+        String podName = zookeeperPodName(clusterName, zkPodId);
+        int port = 2181 * 10 + zkPodId;
+        return asList(kubeClient.execInPod(podName, "/bin/bash", "-c",
+                "bin/kafka-topics.sh --zookeeper localhost:" + port + " --describe --topic " + topic).out().split("\\s+"));
     }
 
-    public String updateTopicPartitionsCountUsingPodCLI(String clusterName, String podName, String topic, int partitions) {
-        return kubeClient.exec(podName, "/bin/bash", "-c",
-                "bin/kafka-topics.sh --zookeeper " + clusterName + "-zookeeper:2181 --alter --topic " + topic + " --partitions " + partitions).out();
+    public String updateTopicPartitionsCountUsingPodCLI(String clusterName, int zkPodId, String topic, int partitions) {
+        String podName = zookeeperPodName(clusterName, zkPodId);
+        int port = 2181 * 10 + zkPodId;
+        return kubeClient.execInPod(podName, "/bin/bash", "-c",
+                "bin/kafka-topics.sh --zookeeper localhost:" + port + " --alter --topic " + topic + " --partitions " + partitions).out();
     }
 
     public Map<String, String> getImagesFromConfig(String configJson) {
@@ -339,7 +338,10 @@ public class AbstractClusterIT {
         images.put(CONNECT_IMAGE, getImageNameFromJSON(configJson, CONNECT_IMAGE));
         images.put(S2I_IMAGE, getImageNameFromJSON(configJson, S2I_IMAGE));
         images.put(TO_IMAGE, getImageNameFromJSON(configJson, TO_IMAGE));
-        images.put(INIT_KAFKA_IMAGE, getImageNameFromJSON(configJson, INIT_KAFKA_IMAGE));
+        images.put(KAFKA_INIT_IMAGE, getImageNameFromJSON(configJson, KAFKA_INIT_IMAGE));
+        images.put(TLS_SIDECAR_ZOOKEEPER_IMAGE, getImageNameFromJSON(configJson, TLS_SIDECAR_ZOOKEEPER_IMAGE));
+        images.put(TLS_SIDECAR_KAFKA_IMAGE, getImageNameFromJSON(configJson, TLS_SIDECAR_KAFKA_IMAGE));
+        images.put(TLS_SIDECAR_TO_IMAGE, getImageNameFromJSON(configJson, TLS_SIDECAR_TO_IMAGE));
         return images;
     }
 
@@ -347,9 +349,14 @@ public class AbstractClusterIT {
         return JsonPath.parse(json).read("$.spec.template.spec.containers[*].env[?(@.name =='" + image + "')].value").toString().replaceAll("[\"\\[\\]\\\\]", "");
     }
 
-    public String  getImageNameFromPod(String podName) {
+    public String getContainerImageNameFromPod(String podName) {
         String clusterOperatorJson = kubeClient.getResourceAsJson("pod", podName);
         return JsonPath.parse(clusterOperatorJson).read("$.spec.containers[*].image").toString().replaceAll("[\"\\[\\]\\\\]", "");
+    }
+
+    public String getContainerImageNameFromPod(String podName, String containerName) {
+        String clusterOperatorJson = kubeClient.getResourceAsJson("pod", podName);
+        return JsonPath.parse(clusterOperatorJson).read("$.spec.containers[?(@.name =='" + containerName + "')].image").toString().replaceAll("[\"\\[\\]\\\\]", "");
     }
 
     public String  getInitContainerImageName(String podName) {

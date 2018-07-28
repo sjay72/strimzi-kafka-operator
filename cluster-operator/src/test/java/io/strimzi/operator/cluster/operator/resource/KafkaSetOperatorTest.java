@@ -9,30 +9,31 @@ import io.fabric8.kubernetes.api.model.Secret;
 import io.fabric8.kubernetes.api.model.extensions.StatefulSet;
 import io.strimzi.api.kafka.model.InlineLogging;
 import io.strimzi.api.kafka.model.KafkaAssembly;
+import io.strimzi.api.kafka.model.KafkaAssemblyBuilder;
 import io.strimzi.operator.cluster.ResourceUtils;
 import io.strimzi.operator.cluster.model.KafkaCluster;
 import io.strimzi.operator.cluster.operator.assembly.MockCertManager;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static io.strimzi.operator.cluster.model.AbstractModel.containerEnvVars;
 import static io.strimzi.operator.cluster.model.KafkaCluster.ENV_VAR_KAFKA_ZOOKEEPER_CONNECT;
+import static java.util.Collections.singletonMap;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class KafkaSetOperatorTest {
 
-    public static final String METRICS_CONFIG = "{\"foo\":\"bar\"}";
+
     public static final InlineLogging KAFKA_LOG_CONFIG = new InlineLogging();
     public static final InlineLogging ZOOKEEPER_LOG_CONFIG = new InlineLogging();
     static {
-        KAFKA_LOG_CONFIG.setLoggers(Collections.singletonMap("zookeeper.root.logger", "OFF"));
-        ZOOKEEPER_LOG_CONFIG.setLoggers(Collections.singletonMap("kafka.root.logger.level", "OFF"));
+        KAFKA_LOG_CONFIG.setLoggers(singletonMap("zookeeper.root.logger", "OFF"));
+        ZOOKEEPER_LOG_CONFIG.setLoggers(singletonMap("kafka.root.logger.level", "OFF"));
     }
 
     private StatefulSet a;
@@ -41,8 +42,8 @@ public class KafkaSetOperatorTest {
     @Before
     public void before() {
         MockCertManager certManager = new MockCertManager();
-        a = KafkaCluster.fromCrd(certManager, getResource(), getInitialSecrets()).generateStatefulSet(true);
-        b = KafkaCluster.fromCrd(certManager, getResource(), getInitialSecrets()).generateStatefulSet(true);
+        a = KafkaCluster.fromCrd(certManager, getResource(), getInitialSecrets(getResource().getMetadata().getName())).generateStatefulSet(true);
+        b = KafkaCluster.fromCrd(certManager, getResource(), getInitialSecrets(getResource().getMetadata().getName())).generateStatefulSet(true);
     }
 
     private KafkaAssembly getResource() {
@@ -52,16 +53,27 @@ public class KafkaSetOperatorTest {
         String image = "bar";
         int healthDelay = 120;
         int healthTimeout = 30;
-        return ResourceUtils.createKafkaCluster(clusterCmNamespace, clusterCmName, replicas, image, healthDelay, healthTimeout, METRICS_CONFIG,
-                "{\"type\": \"persistent-claim\", " +
-                        "\"size\": \"123\", " +
-                        "\"class\": \"foo\"," +
-                        "\"delete-claim\": true}", KAFKA_LOG_CONFIG, ZOOKEEPER_LOG_CONFIG);
+        return new KafkaAssemblyBuilder(ResourceUtils.createKafkaCluster(clusterCmNamespace, clusterCmName,
+                replicas, image, healthDelay, healthTimeout))
+                .editSpec()
+                    .editKafka()
+                        .withNewPersistentClaimStorageStorage()
+                            .withSize("123")
+                            .withStorageClass("foo")
+                            .withDeleteClaim(true)
+                            .endPersistentClaimStorageStorage()
+                        .withLogging(KAFKA_LOG_CONFIG)
+                    .endKafka()
+                    .editZookeeper()
+                        .withLogging(ZOOKEEPER_LOG_CONFIG)
+                    .endZookeeper()
+                .endSpec()
+            .build();
     }
 
-    private List<Secret> getInitialSecrets() {
+    private List<Secret> getInitialSecrets(String clusterName) {
         String clusterCmNamespace = "test";
-        return ResourceUtils.createKafkaClusterInitialSecrets(clusterCmNamespace);
+        return ResourceUtils.createKafkaClusterInitialSecrets(clusterCmNamespace, clusterName);
     }
 
     private StatefulSetDiff diff() {

@@ -8,6 +8,7 @@ import io.fabric8.kubernetes.api.model.Event;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.strimzi.api.kafka.model.Kafka;
+import io.strimzi.api.kafka.model.KafkaTopic;
 import io.strimzi.api.kafka.model.Zookeeper;
 import io.strimzi.test.ClusterOperator;
 import io.strimzi.test.JUnitGroup;
@@ -21,7 +22,6 @@ import io.strimzi.test.Topic;
 import io.strimzi.test.k8s.Oc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -43,8 +43,8 @@ import static io.strimzi.systemtest.k8s.Events.SuccessfulDelete;
 import static io.strimzi.systemtest.k8s.Events.Unhealthy;
 import static io.strimzi.systemtest.matchers.Matchers.hasAllOfReasons;
 import static io.strimzi.systemtest.matchers.Matchers.hasNoneOfReasons;
-import static io.strimzi.systemtest.matchers.Matchers.valueOfCmEquals;
 import static io.strimzi.test.StrimziRunner.TOPIC_CM;
+import static io.strimzi.test.TestUtils.fromYamlString;
 import static io.strimzi.test.TestUtils.map;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static junit.framework.TestCase.assertTrue;
@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.valid4j.matchers.jsonpath.JsonPathMatchers.hasJsonPath;
 
@@ -63,15 +64,7 @@ public class KafkaClusterIT extends AbstractClusterIT {
     private static final Logger LOGGER = LogManager.getLogger(KafkaClusterIT.class);
 
     public static final String NAMESPACE = "kafka-cluster-test";
-    private static final String CLUSTER_NAME = "my-cluster";
     private static final String TOPIC_NAME = "test-topic";
-    private static final String CO_DEPLOYMENT_CONFIG = "../examples/install/cluster-operator/08-deployment.yaml";
-
-    @BeforeClass
-    public static void waitForCc() {
-        // TODO Build this into the annos, or get rid of the annos
-        //cluster.client().waitForDeployment("strimzi-cluster-operator");
-    }
 
     @Test
     @JUnitGroup(name = "regression")
@@ -87,7 +80,7 @@ public class KafkaClusterIT extends AbstractClusterIT {
         //Testing docker images
         testDockerImagesForKafkaCluster(clusterName, 3, 3, false);
 
-        oc.deleteByName("cm", clusterName);
+        oc.deleteByName("Kafka", clusterName);
         oc.waitForResourceDeletion("statefulset", kafkaClusterName(clusterName));
         oc.waitForResourceDeletion("statefulset", zookeeperClusterName(clusterName));
     }
@@ -179,9 +172,7 @@ public class KafkaClusterIT extends AbstractClusterIT {
         kubeClient.waitForPod(newZkPodName[1]);
 
         // check the new node is either in leader or follower state
-        waitForZkMntr(firstZkPodName, Pattern.compile("zk_server_state\\s+(leader|follower)"));
-        waitForZkMntr(newZkPodName[0], Pattern.compile("zk_server_state\\s+(leader|follower)"));
-        waitForZkMntr(newZkPodName[1], Pattern.compile("zk_server_state\\s+(leader|follower)"));
+        waitForZkMntr(Pattern.compile("zk_server_state\\s+(leader|follower)"), 0, 1, 2);
 
         //Test that first pod does not have errors or failures in events
         List<Event> eventsForFirstPod = getEvents("Pod", newZkPodName[0]);
@@ -203,7 +194,7 @@ public class KafkaClusterIT extends AbstractClusterIT {
         });
         kubeClient.waitForResourceDeletion("po", zookeeperPodName(CLUSTER_NAME,  1));
         // Wait for the one remaining node to enter standalone mode
-        waitForZkMntr(firstZkPodName, Pattern.compile("zk_server_state\\s+standalone"));
+        waitForZkMntr(Pattern.compile("zk_server_state\\s+standalone"), 0);
 
         //Test that the second pod has event 'Killing'
         assertThat(getEvents("Pod", newZkPodName[1]), hasAllOfReasons(Killing));
@@ -230,14 +221,6 @@ public class KafkaClusterIT extends AbstractClusterIT {
         }
 
         LOGGER.info("Verify values before update");
-        String configMapBefore = kubeClient.get("kafka", clusterName);
-        assertThat(configMapBefore, valueOfCmEquals("zookeeper-healthcheck-delay", "30"));
-        assertThat(configMapBefore, valueOfCmEquals("zookeeper-healthcheck-timeout", "10"));
-        assertThat(configMapBefore, valueOfCmEquals("kafka-healthcheck-delay", "30"));
-        assertThat(configMapBefore, valueOfCmEquals("kafka-healthcheck-timeout", "10"));
-        assertThat(configMapBefore, valueOfCmEquals("kafka-config", "{\"default.replication.factor\": 1,\"offsets.topic.replication.factor\": 1,\"transaction.state.log.replication.factor\": 1}"));
-        assertThat(configMapBefore, valueOfCmEquals("zookeeper-config", "{\"timeTick\": 2000, \"initLimit\": 5, \"syncLimit\": 2}"));
-
         for (int i = 0; i < expectedKafkaPods; i++) {
             String kafkaPodJson = kubeClient.getResourceAsJson("pod", kafkaPodName(clusterName, i));
             assertEquals("transaction.state.log.replication.factor=1\\ndefault.replication.factor=1\\noffsets.topic.replication.factor=1\\n".replaceAll("\\p{P}", ""), getValueFromJson(kafkaPodJson,
@@ -261,8 +244,12 @@ public class KafkaClusterIT extends AbstractClusterIT {
             kafka.getLivenessProbe().setTimeoutSeconds(11);
             kafka.getReadinessProbe().setTimeoutSeconds(11);
             kafka.setConfig(TestUtils.fromJson("{\"default.replication.factor\": 2,\"offsets.topic.replication.factor\": 2,\"transaction.state.log.replication.factor\": 2}", Map.class));
-            Zookeeper z = k.getSpec().getZookeeper();
-            z.setConfig(TestUtils.fromJson("{\"timeTick\": 2100, \"initLimit\": 6, \"syncLimit\": 3}", Map.class));
+            Zookeeper zookeeper = k.getSpec().getZookeeper();
+            zookeeper.getLivenessProbe().setInitialDelaySeconds(31);
+            zookeeper.getReadinessProbe().setInitialDelaySeconds(31);
+            zookeeper.getLivenessProbe().setTimeoutSeconds(11);
+            zookeeper.getReadinessProbe().setTimeoutSeconds(11);
+            zookeeper.setConfig(TestUtils.fromJson("{\"timeTick\": 2100, \"initLimit\": 6, \"syncLimit\": 3}", Map.class));
         });
 
         for (int i = 0; i < expectedZKPods; i++) {
@@ -275,14 +262,6 @@ public class KafkaClusterIT extends AbstractClusterIT {
         }
 
         LOGGER.info("Verify values after update");
-        String configMapAfter = kubeClient.get("cm", clusterName);
-        assertThat(configMapAfter, valueOfCmEquals("zookeeper-healthcheck-delay", "31"));
-        assertThat(configMapAfter, valueOfCmEquals("zookeeper-healthcheck-timeout", "11"));
-        assertThat(configMapAfter, valueOfCmEquals("kafka-healthcheck-delay", "31"));
-        assertThat(configMapAfter, valueOfCmEquals("kafka-healthcheck-timeout", "11"));
-        assertThat(configMapAfter, valueOfCmEquals("kafka-config", "{\"default.replication.factor\": 2,\"offsets.topic.replication.factor\": 2,\"transaction.state.log.replication.factor\": 2}"));
-        assertThat(configMapAfter, valueOfCmEquals("zookeeper-config", "{\"timeTick\": 2100, \"initLimit\": 6, \"syncLimit\": 3}"));
-
         for (int i = 0; i < expectedKafkaPods; i++) {
             String kafkaPodJson = kubeClient.getResourceAsJson("pod", kafkaPodName(clusterName, i));
             assertEquals("transaction.state.log.replication.factor=2\\ndefault.replication.factor=2\\noffsets.topic.replication.factor=2\\n".replaceAll("\\p{P}", ""), getValueFromJson(kafkaPodJson,
@@ -307,7 +286,7 @@ public class KafkaClusterIT extends AbstractClusterIT {
     @Topic(name = TOPIC_NAME, clusterName = "my-cluster")
     public void testSendMessages() {
         int messagesCount = 20;
-        sendMessages(CLUSTER_NAME, TOPIC_NAME, messagesCount, 1);
+        sendMessages(kafkaPodName(CLUSTER_NAME, 1), CLUSTER_NAME, TOPIC_NAME, messagesCount);
         String consumedMessages = consumeMessages(CLUSTER_NAME, TOPIC_NAME, 1, 30, 2);
 
         assertThat(consumedMessages, hasJsonPath("$[*].count", hasItem(messagesCount)));
@@ -325,7 +304,7 @@ public class KafkaClusterIT extends AbstractClusterIT {
                 "-Xmx1g", "-Xms1G", "-server", "-XX:+UseG1GC");
 
         assertResources(NAMESPACE, "jvm-resource-cluster-zookeeper-0",
-                "1G", "300m", "1G", "300m");
+                "1Gi", "300m", "1Gi", "300m");
         assertExpectedJavaOpts("jvm-resource-cluster-zookeeper-0",
                 "-Xmx600m", "-Xms300m", "-server", "-XX:+UseG1GC");
 
@@ -338,37 +317,45 @@ public class KafkaClusterIT extends AbstractClusterIT {
     @Test
     @JUnitGroup(name = "regression")
     @KafkaFromClasspathYaml
-    public void testForTopicOperator() {
+    public void testForTopicOperator() throws InterruptedException {
         //Createing topics for testing
         kubeClient.create(TOPIC_CM);
-        assertThat(listTopicsUsingPodCLI(CLUSTER_NAME, kafkaPodName(CLUSTER_NAME, 1)), hasItem("my-topic"));
+        assertThat(listTopicsUsingPodCLI(CLUSTER_NAME, 0), hasItem("my-topic"));
 
-        createTopicUsingPodCLI(CLUSTER_NAME, kafkaPodName(CLUSTER_NAME, 1), "topic-from-cli", 1, 1);
-        assertThat(listTopicsUsingPodCLI(CLUSTER_NAME, kafkaPodName(CLUSTER_NAME, 1)), hasItems("my-topic", "topic-from-cli"));
-        assertThat(kubeClient.list("cm"), hasItems("my-topic", "topic-from-cli", "my-topic"));
+        createTopicUsingPodCLI(CLUSTER_NAME, 0, "topic-from-cli", 1, 1);
+        assertThat(listTopicsUsingPodCLI(CLUSTER_NAME, 0), hasItems("my-topic", "topic-from-cli"));
+        assertThat(kubeClient.list("kafkatopic"), hasItems("my-topic", "topic-from-cli", "my-topic"));
 
         //Updating first topic using pod CLI
-        updateTopicPartitionsCountUsingPodCLI(CLUSTER_NAME, kafkaPodName(CLUSTER_NAME, 1), "my-topic", 2);
-        assertThat(describeTopicUsingPodCLI(CLUSTER_NAME, kafkaPodName(CLUSTER_NAME, 1), "my-topic"),
+        updateTopicPartitionsCountUsingPodCLI(CLUSTER_NAME, 0, "my-topic", 2);
+        assertThat(describeTopicUsingPodCLI(CLUSTER_NAME, 0, "my-topic"),
                 hasItems("PartitionCount:2"));
-        String testTopicCM = kubeClient.get("cm", "my-topic");
-        assertThat(testTopicCM, valueOfCmEquals("partitions", "2"));
+        KafkaTopic testTopic = fromYamlString(kubeClient.get("kafkatopic", "my-topic"), KafkaTopic.class);
+        assertNotNull(testTopic);
+        assertNotNull(testTopic.getSpec());
+        assertEquals(Integer.valueOf(2), testTopic.getSpec().getPartitions());
 
-        //Updating second topic via CM update
-        replaceCm("topic-from-cli", "partitions", "2");
-        assertThat(describeTopicUsingPodCLI(CLUSTER_NAME, kafkaPodName(CLUSTER_NAME, 1), "topic-from-cli"),
+        //Updating second topic via KafkaTopic update
+        replaceTopicResource("topic-from-cli", topic -> {
+            topic.getSpec().setPartitions(2);
+        });
+        assertThat(describeTopicUsingPodCLI(CLUSTER_NAME, 0, "topic-from-cli"),
                 hasItems("PartitionCount:2"));
-        testTopicCM = kubeClient.get("cm", "topic-from-cli");
-        assertThat(testTopicCM, valueOfCmEquals("partitions", "2"));
+        testTopic = fromYamlString(kubeClient.get("kafkatopic", "topic-from-cli"), KafkaTopic.class);
+        assertNotNull(testTopic);
+        assertNotNull(testTopic.getSpec());
+        assertEquals(Integer.valueOf(2), testTopic.getSpec().getPartitions());
 
         //Deleting first topic by deletion of CM
-        kubeClient.deleteByName("cm", "topic-from-cli");
+        kubeClient.deleteByName("kafkatopic", "topic-from-cli");
 
         //Deleting another topic using pod CLI
-        deleteTopicUsingPodCLI(CLUSTER_NAME, kafkaPodName(CLUSTER_NAME, 1), "my-topic");
-        kubeClient.waitForResourceDeletion("cm", "my-topic");
-        List<String> topics = listTopicsUsingPodCLI(CLUSTER_NAME, kafkaPodName(CLUSTER_NAME, 1));
-        assertThat(topics, not(hasItems("topic-from-cli", "my-topic")));
+        deleteTopicUsingPodCLI(CLUSTER_NAME, 0, "my-topic");
+        kubeClient.waitForResourceDeletion("kafkatopic", "my-topic");
+        Thread.sleep(10000L);
+        List<String> topics = listTopicsUsingPodCLI(CLUSTER_NAME, 0);
+        assertThat(topics, not(hasItems("my-topic")));
+        assertThat(topics, not(hasItems("topic-from-cli")));
     }
 
     private void testDockerImagesForKafkaCluster(String clusterName, int kafkaPods, int zkPods, boolean rackAwareEnabled) {
@@ -380,24 +367,32 @@ public class KafkaClusterIT extends AbstractClusterIT {
 
         //Verifying docker image for zookeeper pods
         for (int i = 0; i < zkPods; i++) {
-            String imgFromPod = getImageNameFromPod(zookeeperPodName(clusterName, i));
+            String imgFromPod = getContainerImageNameFromPod(zookeeperPodName(clusterName, i), "zookeeper");
             assertEquals(imgFromDeplConf.get(ZK_IMAGE), imgFromPod);
+            imgFromPod = getContainerImageNameFromPod(zookeeperPodName(clusterName, i), "tls-sidecar");
+            assertEquals(imgFromDeplConf.get(TLS_SIDECAR_ZOOKEEPER_IMAGE), imgFromPod);
         }
 
         //Verifying docker image for kafka pods
         for (int i = 0; i < kafkaPods; i++) {
-            String imgFromPod = getImageNameFromPod(kafkaPodName(clusterName, i));
+            String imgFromPod = getContainerImageNameFromPod(kafkaPodName(clusterName, i), "kafka");
             assertEquals(imgFromDeplConf.get(KAFKA_IMAGE), imgFromPod);
+            imgFromPod = getContainerImageNameFromPod(kafkaPodName(clusterName, i), "tls-sidecar");
+            assertEquals(imgFromDeplConf.get(TLS_SIDECAR_KAFKA_IMAGE), imgFromPod);
             if (rackAwareEnabled) {
                 String initContainerImage = getInitContainerImageName(kafkaPodName(clusterName, i));
-                assertEquals(imgFromDeplConf.get(INIT_KAFKA_IMAGE), initContainerImage);
+                assertEquals(imgFromDeplConf.get(KAFKA_INIT_IMAGE), initContainerImage);
             }
         }
 
         //Verifying docker image for topic-operator
-        String topicOperatorImageName = getImageNameFromPod(kubeClient.listResourcesByLabel("pod",
-                "strimzi.io/name=" + clusterName + "-topic-operator").get(0));
-        assertEquals(imgFromDeplConf.get("STRIMZI_DEFAULT_TOPIC_OPERATOR_IMAGE"), topicOperatorImageName);
+        String topicOperatorPodName = kubeClient.listResourcesByLabel("pod",
+                "strimzi.io/name=" + clusterName + "-topic-operator").get(0);
+        String imgFromPod = getContainerImageNameFromPod(topicOperatorPodName, "topic-operator");
+        assertEquals(imgFromDeplConf.get(TO_IMAGE), imgFromPod);
+        imgFromPod = getContainerImageNameFromPod(topicOperatorPodName, "tls-sidecar");
+        assertEquals(imgFromDeplConf.get(TLS_SIDECAR_TO_IMAGE), imgFromPod);
+
         LOGGER.info("Docker images verified");
     }
 
@@ -407,17 +402,13 @@ public class KafkaClusterIT extends AbstractClusterIT {
     public void testRackAware() {
         testDockerImagesForKafkaCluster(CLUSTER_NAME, 1, 1, true);
 
-        String cm = kubeClient.get("cm", CLUSTER_NAME);
-        assertThat(cm, valueOfCmEquals("kafka-rack", "{\"topologyKey\": \"rack-key\"}"));
-
-        kubeClient.waitForStatefulSet(kafkaClusterName(CLUSTER_NAME), 1);
         String kafkaPodName = kafkaPodName(CLUSTER_NAME, 0);
         kubeClient.waitForPod(kafkaPodName);
 
-        String rackId = kubeClient.exec(kafkaPodName, "/bin/bash", "-c", "cat /opt/kafka/rack/rack.id").out();
+        String rackId = kubeClient.execInPod(kafkaPodName, "/bin/bash", "-c", "cat /opt/kafka/rack/rack.id").out();
         assertEquals("zone", rackId);
 
-        String brokerRack = kubeClient.exec(kafkaPodName, "/bin/bash", "-c", "cat /tmp/strimzi.properties | grep broker.rack").out();
+        String brokerRack = kubeClient.execInPod(kafkaPodName, "/bin/bash", "-c", "cat /tmp/strimzi.properties | grep broker.rack").out();
         assertTrue(brokerRack.contains("broker.rack=zone"));
 
         List<Event> events = getEvents("Pod", kafkaPodName);

@@ -20,11 +20,14 @@ import io.vertx.core.Vertx;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import okhttp3.OkHttpClient;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -90,6 +93,12 @@ public class ClusterOperatorTest {
             client = mock(KubernetesClient.class);
             when(client.isAdaptable(eq(OpenShiftClient.class))).thenReturn(false);
         }
+        when(client.isAdaptable(eq(OkHttpClient.class))).thenReturn(true);
+        try {
+            when(client.getMasterUrl()).thenReturn(new URL("http://localhost"));
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
         MixedOperation mockCms = mock(MixedOperation.class);
         //when(client.configMaps()).thenReturn(mockCms);
         NonNamespaceOperation<CustomResourceDefinition, CustomResourceDefinitionList, DoneableCustomResourceDefinition, Resource<CustomResourceDefinition, DoneableCustomResourceDefinition>> mockCrds = mock(NonNamespaceOperation.class);
@@ -124,7 +133,6 @@ public class ClusterOperatorTest {
 
         Map<String, String> env = new HashMap<>();
         env.put(ClusterOperatorConfig.STRIMZI_NAMESPACE, namespaces);
-        env.put(ClusterOperatorConfig.STRIMZI_CONFIGMAP_LABELS, STRIMZI_IO_KIND_CLUSTER);
         env.put(ClusterOperatorConfig.STRIMZI_FULL_RECONCILIATION_INTERVAL_MS, "120000");
         Main.run(vertx, client, openShift, ClusterOperatorConfig.fromMap(env)).setHandler(ar -> {
             context.assertNull(ar.cause(), "Expected all verticles to start OK");

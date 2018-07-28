@@ -16,8 +16,10 @@ import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.dsl.Resource;
 import io.strimzi.certs.CertManager;
 import io.strimzi.certs.SecretCertProvider;
+import io.strimzi.certs.Subject;
 import io.strimzi.operator.cluster.InvalidConfigMapException;
 import io.strimzi.operator.cluster.Reconciliation;
+import io.strimzi.operator.cluster.model.AbstractModel;
 import io.strimzi.operator.cluster.model.AssemblyType;
 import io.strimzi.operator.cluster.model.Labels;
 import io.strimzi.operator.cluster.operator.resource.AbstractWatchableResourceOperator;
@@ -55,8 +57,6 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
     protected static final int LOCK_TIMEOUT = 60000;
     protected static final int CERTS_EXPIRATION_DAYS = 365;
 
-    public static final String INTERNAL_CA_NAME = "internal-ca";
-
     protected final Vertx vertx;
     protected final boolean isOpenShift;
     protected final AssemblyType assemblyType;
@@ -70,11 +70,11 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
      * @param isOpenShift True iff running on OpenShift
      * @param assemblyType Assembly type
      * @param resourceOperator For operating on the desired resource
-     * @param secretOperations For operating on Secrets
      */
     protected AbstractAssemblyOperator(Vertx vertx, boolean isOpenShift, AssemblyType assemblyType,
                                        CertManager certManager,
-                                       AbstractWatchableResourceOperator<C, T, L, D, R> resourceOperator, SecretOperator secretOperations) {
+                                       AbstractWatchableResourceOperator<C, T, L, D, R> resourceOperator,
+                                       SecretOperator secretOperations) {
         this.vertx = vertx;
         this.isOpenShift = isOpenShift;
         this.assemblyType = assemblyType;
@@ -126,39 +126,67 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
         return null;
     }
 
-    private final void reconcileCertificate(String namespace, Handler<AsyncResult<Void>> handler) {
-
+    private final void reconcileClusterCa(Reconciliation reconciliation, Handler<AsyncResult<Void>> handler) {
         vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(
             future -> {
+                String clusterCaName = AbstractModel.getClusterCaName(reconciliation.assemblyName());
 
-                if (secretOperations.get(namespace, INTERNAL_CA_NAME) == null) {
-                    log.info("Generating internal CA certificate");
-                    File internalCAkeyFile = null;
-                    File internalCAcertFile = null;
+                if (secretOperations.get(reconciliation.namespace(), clusterCaName) == null) {
+                    log.debug("{}: Generating cluster CA certificate {}", reconciliation, clusterCaName);
+                    File clusterCAkeyFile = null;
+                    File clusterCAcertFile = null;
                     try {
-                        internalCAkeyFile = File.createTempFile("tls", "internal-ca-key");
-                        internalCAcertFile = File.createTempFile("tls", "internal-ca-cert");
-                        certManager.generateSelfSignedCert(internalCAkeyFile, internalCAcertFile, CERTS_EXPIRATION_DAYS);
+                        clusterCAkeyFile = File.createTempFile("tls", "cluster-ca-key");
+                        clusterCAcertFile = File.createTempFile("tls", "cluster-ca-cert");
+
+                        Subject sbj = new Subject();
+                        sbj.setOrganizationName("io.strimzi");
+                        sbj.setCommonName("cluster-ca");
+
+                        certManager.generateSelfSignedCert(clusterCAkeyFile, clusterCAcertFile, sbj, CERTS_EXPIRATION_DAYS);
 
                         SecretCertProvider secretCertProvider = new SecretCertProvider();
-                        Secret secret = secretCertProvider.createSecret(namespace, INTERNAL_CA_NAME,
-                                "internal-ca.key", "internal-ca.crt",
-                                internalCAkeyFile, internalCAcertFile, Collections.emptyMap());
+                        Secret secret = secretCertProvider.createSecret(reconciliation.namespace(), clusterCaName,
+                                "cluster-ca.key", "cluster-ca.crt",
+                                clusterCAkeyFile, clusterCAcertFile, Collections.emptyMap());
 
-                        secretOperations.reconcile(namespace, INTERNAL_CA_NAME, secret)
+                        secretOperations.reconcile(reconciliation.namespace(), clusterCaName, secret)
                                 .compose(future::complete, future);
-
                     } catch (Throwable e) {
                         future.fail(e);
                     } finally {
-                        if (internalCAkeyFile != null)
-                            internalCAkeyFile.delete();
-                        if (internalCAcertFile != null)
-                            internalCAcertFile.delete();
+                        if (clusterCAkeyFile != null)
+                            clusterCAkeyFile.delete();
+                        if (clusterCAcertFile != null)
+                            clusterCAcertFile.delete();
                     }
-                    log.info("End generating certificate");
+                    log.debug("{}: End generating cluster CA {}", reconciliation, clusterCaName);
                 } else {
-                    log.debug("The internal CA certificate already exists");
+                    log.debug("{}: The cluster CA {} already exists", reconciliation, clusterCaName);
+                    future.complete();
+                }
+            }, true,
+            res -> {
+                if (res.succeeded())
+                    handler.handle(Future.succeededFuture());
+                else
+                    handler.handle(Future.failedFuture(res.cause()));
+            }
+        );
+    }
+
+    private final void deleteClusterCa(Reconciliation reconciliation, Handler<AsyncResult<Void>> handler) {
+        vertx.createSharedWorkerExecutor("kubernetes-ops-pool").executeBlocking(
+            future -> {
+                String clusterCaName = AbstractModel.getClusterCaName(reconciliation.assemblyName());
+
+                if (secretOperations.get(reconciliation.namespace(), clusterCaName) != null) {
+                    log.debug("{}: Deleting cluster CA certificate {}", reconciliation, clusterCaName);
+                    secretOperations.reconcile(reconciliation.namespace(), clusterCaName, null)
+                            .compose(future::complete, future);
+                    log.debug("{}: Cluster CA {} deleted", reconciliation, clusterCaName);
+                } else {
+                    log.debug("{}: The cluster CA {} doesn't exist", reconciliation, clusterCaName);
                     future.complete();
                 }
             }, true,
@@ -174,7 +202,7 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
     /**
      * Reconcile assembly resources in the given namespace having the given {@code assemblyName}.
      * Reconciliation works by getting the assembly resource (e.g. {@code KafkaAssembly}) in the given namespace with the given assemblyName and
-     * comparing with the corresponding {@linkplain #getResources(String) resource}.
+     * comparing with the corresponding {@linkplain #getResources(String, Labels) resource}.
      * <ul>
      * <li>An assembly will be {@linkplain #createOrUpdate(Reconciliation, T, List, Handler) created or updated} if ConfigMap is without same-named resources</li>
      * <li>An assembly will be {@linkplain #delete(Reconciliation, Handler) deleted} if resources without same-named ConfigMap</li>
@@ -190,19 +218,19 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
                 Lock lock = res.result();
 
                 try {
-                    // get ConfigMap and related resources for the specific cluster
-                    T cm = resourceOperator.get(namespace, assemblyName);
+                    // get CustomResource and related resources for the specific cluster
+                    T cr = resourceOperator.get(namespace, assemblyName);
 
-                    if (cm != null) {
+                    if (cr != null) {
                         log.info("{}: Assembly {} should be created or updated", reconciliation, assemblyName);
-                        reconcileCertificate(namespace, certResult -> {
+                        reconcileClusterCa(reconciliation, certResult -> {
 
                             Labels labels = Labels.forCluster(assemblyName);
                             List<Secret> secrets = secretOperations.list(namespace, labels);
-                            secrets.add(secretOperations.get(namespace, INTERNAL_CA_NAME));
+                            secrets.add(secretOperations.get(namespace, AbstractModel.getClusterCaName(assemblyName)));
 
                             if (certResult.succeeded()) {
-                                createOrUpdate(reconciliation, cm, secrets, createResult -> {
+                                createOrUpdate(reconciliation, cr, secrets, createResult -> {
                                     lock.release();
                                     log.debug("{}: Lock {} released", reconciliation, lockName);
                                     if (createResult.failed()) {
@@ -216,16 +244,27 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
                                     }
                                 });
                             } else {
-                                log.error(certResult.cause().toString());
+                                log.error("{}: reconcileClusterCa failed", reconciliation, certResult.cause());
                                 lock.release();
                             }
                         });
                     } else {
                         log.info("{}: Assembly {} should be deleted", reconciliation, assemblyName);
                         delete(reconciliation, deleteResult -> {
-                            lock.release();
-                            log.debug("{}: Lock {} released", reconciliation, lockName);
-                            handler.handle(deleteResult);
+                            if (deleteResult.succeeded())   {
+                                log.info("{}: Assembly {} deleted", reconciliation, assemblyName);
+
+                                deleteClusterCa(reconciliation, caDeleteResult -> {
+                                    lock.release();
+                                    log.debug("{}: Lock {} released", reconciliation, lockName);
+                                    handler.handle(caDeleteResult);
+                                });
+                            } else {
+                                log.error("{}: Deletion of assembly {} failed", reconciliation, assemblyName, deleteResult.cause());
+                                lock.release();
+                                log.debug("{}: Lock {} released", reconciliation, lockName);
+                                handler.handle(deleteResult);
+                            }
                         });
                     }
                 } catch (Throwable ex) {
@@ -242,7 +281,7 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
     /**
      * Reconcile assembly resources in the given namespace having the given selector.
      * Reconciliation works by getting the assembly ConfigMaps in the given namespace with the given selector and
-     * comparing with the corresponding {@linkplain #getResources(String) resource}.
+     * comparing with the corresponding {@linkplain #getResources(String, Labels) resource}.
      * <ul>
      * <li>An assembly will be {@linkplain #createOrUpdate(Reconciliation, T, List, Handler) created} for all ConfigMaps without same-named resources</li>
      * <li>An assembly will be {@linkplain #delete(Reconciliation, Handler) deleted} for all resources without same-named ConfigMaps</li>
@@ -250,23 +289,23 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
      *
      * @param trigger A description of the triggering event (timer or watch), used for logging
      * @param namespace The namespace
-     * @param selector The selector
      */
-    public final CountDownLatch reconcileAll(String trigger, String namespace, Labels selector) {
+    public final CountDownLatch reconcileAll(String trigger, String namespace) {
 
         // get ConfigMaps with kind=cluster&type=kafka (or connect, or connect-s2i) for the corresponding cluster type
-        List<T> desiredResources = resourceOperator.list(namespace, selector);
+        List<T> desiredResources = resourceOperator.list(namespace, Labels.EMPTY);
         Set<String> desiredNames = desiredResources.stream().map(cm -> cm.getMetadata().getName()).collect(Collectors.toSet());
-        log.debug("reconcileAll({}, {}): desired resources with labels {}: {}", assemblyType, trigger, selector, desiredNames);
+        log.debug("reconcileAll({}, {}): desired resources with labels {}: {}", assemblyType, trigger, Labels.EMPTY, desiredNames);
 
         // get resources with kind=cluster&type=kafka (or connect, or connect-s2i)
-        List<? extends HasMetadata> resources = getResources(namespace);
+        Labels resourceSelector = Labels.EMPTY.withKind(assemblyType.name);
+        List<? extends HasMetadata> resources = getResources(namespace, resourceSelector);
         // now extract the cluster name from those
         Set<String> resourceNames = resources.stream()
                 .filter(r -> !r.getKind().equals(kind)) // exclude desired resource
                 .map(Labels::cluster)
                 .collect(Collectors.toSet());
-        log.debug("reconcileAll({}, {}): Other resources with labels {}: {}", assemblyType, trigger, selector, resourceNames);
+        log.debug("reconcileAll({}, {}): Other resources with labels {}: {}", assemblyType, trigger, resourceSelector, resourceNames);
 
         desiredNames.addAll(resourceNames);
 
@@ -291,11 +330,10 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
      * @param namespace The namespace
      * @return The matching resources.
      */
-    protected abstract List<HasMetadata> getResources(String namespace);
+    protected abstract List<HasMetadata> getResources(String namespace, Labels selector);
 
     public Future<Watch> createWatch(String namespace, Consumer<KubernetesClientException> onClose) {
         Future<Watch> result = Future.future();
-        Labels selector = Labels.EMPTY;
         vertx.<Watch>executeBlocking(
             future -> {
                 Watch watch = resourceOperator.watch(namespace, new Watcher<T>() {
@@ -314,11 +352,11 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
                                 break;
                             case ERROR:
                                 log.error("Failed {} {} in namespace{} ", kind, name, namespace);
-                                reconcileAll("watch error", namespace, selector);
+                                reconcileAll("watch error", namespace);
                                 break;
                             default:
                                 log.error("Unknown action: {} in namespace {}", name, namespace);
-                                reconcileAll("watch unknown", namespace, selector);
+                                reconcileAll("watch unknown", namespace);
                         }
                     }
 
@@ -344,7 +382,7 @@ public abstract class AbstractAssemblyOperator<C extends KubernetesClient, T ext
             if (cause instanceof InvalidConfigMapException) {
                 log.warn("{}: Failed to reconcile {}", reconciliation, cause.getMessage());
             } else {
-                log.warn("{}: Failed to reconcile {}", reconciliation, cause);
+                log.warn("{}: Failed to reconcile", reconciliation, cause);
             }
         }
     }

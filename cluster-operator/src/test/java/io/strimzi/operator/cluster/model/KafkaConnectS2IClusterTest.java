@@ -15,12 +15,17 @@ import io.fabric8.openshift.api.model.ImageChangeTrigger;
 import io.fabric8.openshift.api.model.ImageStream;
 import io.strimzi.api.kafka.model.KafkaConnectS2IAssembly;
 import io.strimzi.operator.cluster.ResourceUtils;
+import io.strimzi.test.TestUtils;
+
+import org.junit.Rule;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static io.strimzi.test.TestUtils.LINE_SEPARATOR;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -36,32 +41,36 @@ public class KafkaConnectS2IClusterTest {
     private final int healthTimeout = 10;
     private final String metricsCmJson = "{\"animal\":\"wombat\"}";
     private final String configurationJson = "{\"foo\":\"bar\"}";
-    private final String expectedConfiguration = "group.id=connect-cluster\n" +
-            "key.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "internal.key.converter.schemas.enable=false\n" +
-            "value.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "config.storage.topic=connect-cluster-configs\n" +
-            "status.storage.topic=connect-cluster-status\n" +
-            "offset.storage.topic=connect-cluster-offsets\n" +
-            "foo=bar\n" +
-            "internal.key.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "internal.value.converter.schemas.enable=false\n" +
-            "internal.value.converter=org.apache.kafka.connect.json.JsonConverter\n";
-    private final String defaultConfiguration = "group.id=connect-cluster\n" +
-            "key.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "internal.key.converter.schemas.enable=false\n" +
-            "value.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "config.storage.topic=connect-cluster-configs\n" +
-            "status.storage.topic=connect-cluster-status\n" +
-            "offset.storage.topic=connect-cluster-offsets\n" +
-            "internal.key.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "internal.value.converter.schemas.enable=false\n" +
-            "internal.value.converter=org.apache.kafka.connect.json.JsonConverter\n";
+    private final String expectedConfiguration = "group.id=connect-cluster" + LINE_SEPARATOR +
+            "key.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "internal.key.converter.schemas.enable=false" + LINE_SEPARATOR +
+            "value.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "config.storage.topic=connect-cluster-configs" + LINE_SEPARATOR +
+            "status.storage.topic=connect-cluster-status" + LINE_SEPARATOR +
+            "offset.storage.topic=connect-cluster-offsets" + LINE_SEPARATOR +
+            "foo=bar" + LINE_SEPARATOR +
+            "internal.key.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "internal.value.converter.schemas.enable=false" + LINE_SEPARATOR +
+            "internal.value.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR;
+    private final String defaultConfiguration = "group.id=connect-cluster" + LINE_SEPARATOR +
+            "key.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "internal.key.converter.schemas.enable=false" + LINE_SEPARATOR +
+            "value.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "config.storage.topic=connect-cluster-configs" + LINE_SEPARATOR +
+            "status.storage.topic=connect-cluster-status" + LINE_SEPARATOR +
+            "offset.storage.topic=connect-cluster-offsets" + LINE_SEPARATOR +
+            "internal.key.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "internal.value.converter.schemas.enable=false" + LINE_SEPARATOR +
+            "internal.value.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR;
     private final boolean insecureSourceRepo = false;
 
     private final KafkaConnectS2IAssembly cm = ResourceUtils.createKafkaConnectS2ICluster(namespace, cluster, replicas, image,
             healthDelay, healthTimeout, metricsCmJson, configurationJson, insecureSourceRepo);
     private final KafkaConnectS2ICluster kc = KafkaConnectS2ICluster.fromCrd(cm);
+
+    @Rule
+    public ResourceTester<KafkaConnectS2IAssembly, KafkaConnectS2ICluster> resourceTester = new ResourceTester<>(KafkaConnectS2IAssembly.class, KafkaConnectS2ICluster::fromCrd);
+
 
     @Test
     public void testMetricsConfigMap() {
@@ -71,6 +80,10 @@ public class KafkaConnectS2IClusterTest {
 
     private void checkMetricsConfigMap(ConfigMap metricsCm) {
         assertEquals(metricsCmJson, metricsCm.getData().get(AbstractModel.ANCILLARY_CM_KEY_METRICS));
+    }
+
+    private Map<String, String> expectedLabels(String name)    {
+        return TestUtils.map("my-user-label", "cromulent", Labels.STRIMZI_CLUSTER_LABEL, cluster, Labels.STRIMZI_TYPE_LABEL, "kafka-connect-s2i", Labels.STRIMZI_NAME_LABEL, name, Labels.STRIMZI_KIND_LABEL, KafkaConnectS2IAssembly.RESOURCE_KIND);
     }
 
     protected List<EnvVar> getExpectedEnvVars() {
@@ -119,17 +132,13 @@ public class KafkaConnectS2IClusterTest {
         Service svc = kc.generateService();
 
         assertEquals("ClusterIP", svc.getSpec().getType());
-        Map<String, String> expectedLabels = ResourceUtils.labels(
-                "my-user-label", "cromulent",
-                Labels.STRIMZI_CLUSTER_LABEL, cluster,
-                Labels.STRIMZI_TYPE_LABEL, "kafka-connect-s2i",
-                Labels.STRIMZI_NAME_LABEL, kc.kafkaConnectClusterName(cluster));
-        assertEquals(expectedLabels, svc.getMetadata().getLabels());
-        assertEquals(expectedLabels, svc.getSpec().getSelector());
+        assertEquals(expectedLabels(kc.serviceName(cluster)), svc.getMetadata().getLabels());
+        assertEquals(expectedLabels(kc.kafkaConnectClusterName(cluster)), svc.getSpec().getSelector());
         assertEquals(2, svc.getSpec().getPorts().size());
         assertEquals(new Integer(KafkaConnectCluster.REST_API_PORT), svc.getSpec().getPorts().get(0).getPort());
         assertEquals(KafkaConnectCluster.REST_API_PORT_NAME, svc.getSpec().getPorts().get(0).getName());
         assertEquals("TCP", svc.getSpec().getPorts().get(0).getProtocol());
+        assertEquals(kc.getPrometheusAnnotations(), svc.getMetadata().getAnnotations());
     }
 
     @Test
@@ -138,10 +147,7 @@ public class KafkaConnectS2IClusterTest {
 
         assertEquals(kc.kafkaConnectClusterName(cluster), dep.getMetadata().getName());
         assertEquals(namespace, dep.getMetadata().getNamespace());
-        Map<String, String> expectedLabels = ResourceUtils.labels(Labels.STRIMZI_CLUSTER_LABEL, this.cluster,
-                Labels.STRIMZI_TYPE_LABEL, "kafka-connect-s2i",
-                "my-user-label", "cromulent",
-                Labels.STRIMZI_NAME_LABEL, kc.kafkaConnectClusterName(cluster));
+        Map<String, String> expectedLabels = expectedLabels(kc.kafkaConnectClusterName(cluster));
         assertEquals(expectedLabels, dep.getMetadata().getLabels());
         assertEquals(new Integer(replicas), dep.getSpec().getReplicas());
         assertEquals(expectedLabels, dep.getSpec().getTemplate().getMetadata().getLabels());
@@ -176,10 +182,7 @@ public class KafkaConnectS2IClusterTest {
 
         assertEquals(kc.kafkaConnectClusterName(cluster), bc.getMetadata().getName());
         assertEquals(namespace, bc.getMetadata().getNamespace());
-        assertEquals(ResourceUtils.labels(Labels.STRIMZI_CLUSTER_LABEL, cluster,
-                Labels.STRIMZI_TYPE_LABEL, "kafka-connect-s2i",
-                "my-user-label", "cromulent",
-                Labels.STRIMZI_NAME_LABEL, kc.kafkaConnectClusterName(cluster)), bc.getMetadata().getLabels());
+        assertEquals(expectedLabels(kc.kafkaConnectClusterName(cluster)), bc.getMetadata().getLabels());
         assertEquals("ImageStreamTag", bc.getSpec().getOutput().getTo().getKind());
         assertEquals(kc.image, bc.getSpec().getOutput().getTo().getName());
         assertEquals("Serial", bc.getSpec().getRunPolicy());
@@ -200,10 +203,7 @@ public class KafkaConnectS2IClusterTest {
 
         assertEquals(kc.getSourceImageStreamName(), is.getMetadata().getName());
         assertEquals(namespace, is.getMetadata().getNamespace());
-        assertEquals(ResourceUtils.labels(Labels.STRIMZI_CLUSTER_LABEL, cluster,
-                Labels.STRIMZI_TYPE_LABEL, "kafka-connect-s2i",
-                "my-user-label", "cromulent",
-                Labels.STRIMZI_NAME_LABEL, kc.getSourceImageStreamName()), is.getMetadata().getLabels());
+        assertEquals(expectedLabels(kc.getSourceImageStreamName()), is.getMetadata().getLabels());
         assertEquals(false, is.getSpec().getLookupPolicy().getLocal());
         assertEquals(1, is.getSpec().getTags().size());
         assertEquals(image.substring(image.lastIndexOf(":") + 1), is.getSpec().getTags().get(0).getName());
@@ -224,10 +224,7 @@ public class KafkaConnectS2IClusterTest {
 
         assertEquals(kc.getSourceImageStreamName(), is.getMetadata().getName());
         assertEquals(namespace, is.getMetadata().getNamespace());
-        assertEquals(ResourceUtils.labels(Labels.STRIMZI_CLUSTER_LABEL, cluster,
-                Labels.STRIMZI_TYPE_LABEL, "kafka-connect-s2i",
-                "my-user-label", "cromulent",
-                Labels.STRIMZI_NAME_LABEL, kc.getSourceImageStreamName()), is.getMetadata().getLabels());
+        assertEquals(expectedLabels(kc.getSourceImageStreamName()), is.getMetadata().getLabels());
         assertEquals(false, is.getSpec().getLookupPolicy().getLocal());
         assertEquals(1, is.getSpec().getTags().size());
         assertEquals(image.substring(image.lastIndexOf(":") + 1), is.getSpec().getTags().get(0).getName());
@@ -243,10 +240,19 @@ public class KafkaConnectS2IClusterTest {
 
         assertEquals(kc.kafkaConnectClusterName(cluster), is.getMetadata().getName());
         assertEquals(namespace, is.getMetadata().getNamespace());
-        assertEquals(ResourceUtils.labels(Labels.STRIMZI_CLUSTER_LABEL, cluster,
-                Labels.STRIMZI_TYPE_LABEL, "kafka-connect-s2i",
-                "my-user-label", "cromulent",
-                Labels.STRIMZI_NAME_LABEL, kc.kafkaConnectClusterName(cluster)), is.getMetadata().getLabels());
+        assertEquals(expectedLabels(kc.kafkaConnectClusterName(cluster)), is.getMetadata().getLabels());
         assertEquals(true, is.getSpec().getLookupPolicy().getLocal());
+    }
+
+    @Test
+    public void withAffinity() throws IOException {
+        resourceTester
+            .assertDesiredResource("-DeploymentConfig.yaml", kcc -> kcc.generateDeploymentConfig().getSpec().getTemplate().getSpec().getAffinity());
+    }
+
+    @Test
+    public void withTolerations() throws IOException {
+        resourceTester
+            .assertDesiredResource("-DeploymentConfig.yaml", kcc -> kcc.generateDeploymentConfig().getSpec().getTemplate().getSpec().getTolerations());
     }
 }

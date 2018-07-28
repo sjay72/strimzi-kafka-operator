@@ -29,7 +29,7 @@ In order to handle failovers properly, a periodic reconciliation process is exec
 [[kafka_assembly_details]]
 === Format of the `Kafka` resource
 
-The full API is described in <<kafka_resource_reference>>.
+The full API is described in <<type-KafkaAssembly>>.
 
 Whatever other labels are applied to the desired Kafka resource will also be applied to the {ProductPlatformName} resources making up the Kafka cluster.
 This provides a convenient mechanism for those resources to be labelled in whatever way the user requires.
@@ -43,19 +43,19 @@ In order to configure a Kafka cluster deployment, it is possible to specify the 
 The number of Kafka broker nodes.
 Default is 3.
 `spec.kafka.image`::
-The Docker image to use for the Kafka brokers. 
-Default is determined by the value of the `<<STRIMZI_DEFAULT_KAFKA_IMAGE,STRIMZI_DEFAULT_KAFKA_IMAGE>>` environment variable of the Cluster Operator.
+The Docker image to be used by the Kafka brokers.
+The default value is determined by the value specified in the `<<STRIMZI_DEFAULT_KAFKA_IMAGE,STRIMZI_DEFAULT_KAFKA_IMAGE>>` environment variable of the Cluster Operator.
 `spec.kafka.brokerRackInitImage`::
-The Docker image to use for the init container which does some initial configuration work (that is, rack support).
-Default is determined by the value of the `<<STRIMZI_DEFAULT_INIT_KAFKA_IMAGE,STRIMZI_DEFAULT_INIT_KAFKA_IMAGE>>` environment variable of the Cluster Operator.
+The Docker image to be used by the init container which does some initial configuration work (that is, rack support).
+The default value is determined by the value specified in the `<<STRIMZI_DEFAULT_KAFKA_INIT_IMAGE,STRIMZI_DEFAULT_KAFKA_INIT_IMAGE>>` environment variable of the Cluster Operator.
 `spec.kafka.livenessProbe.initialDelaySeconds`::
-The initial delay for the liveness probe for each Kafka broker node. 
+The initial delay for the liveness probe for each Kafka broker node.
 Default is 15.
 `spec.kafka.livenessProbe.timeoutSeconds`::
-The timeout on the liveness probe for each Kafka broker node. 
+The timeout on the liveness probe for each Kafka broker node.
 Default is 5.
 `spec.kafka.readinessProbe.initialDelaySeconds`::
-The initial delay for the readiness probe for each Kafka broker node. 
+The initial delay for the readiness probe for each Kafka broker node.
 Default is 15.
 `spec.kafka.readinessProbe.timeoutSeconds`::
 The timeout on the readiness probe for each Kafka broker node. 
@@ -69,7 +69,7 @@ See section <<storage_configuration_json_config>> for more details.
 `spec.kafka.metrics`::
 The JMX exporter configuration for exposing metrics from Kafka broker nodes.
 When this field is absent no metrics will be exposed.
-`spec.kafka.logging`::
+[[spec.kafka.logging]]`spec.kafka.logging`::
 An object that specifies inline logging levels or the name of external config map that specifies the logging levels.
 When this field is absent default values are used.
 List of loggers which can be set:
@@ -96,16 +96,22 @@ An object allowing the JVM running Kafka to be configured.
 The accepted format is described in the <<jvm_json_config>> section.
 `spec.kafka.rack`::
 An object allowing the Kafka rack feature to be configured and used in rack-aware partition assignment for fault tolerance.
-The accepted JSON format is described in the <<kafka_rack>> section.
+For information about the accepted JSON format, see <<kafka_rack>> section.
 `spec.kafka.affinity`::
 An object allowing control over how the Kafka pods are scheduled to nodes.
 The format of the corresponding key is the same as the content supported in the Pod `affinity` in {ProductPlatformName}.
 See section <<affinity>> for more details.
+`spec.kafka.tlsSidecar.image`::
+The Docker image to be used by the sidecar container which provides TLS support for Kafka brokers.
+The default value is determined by the value specified in the `<<STRIMZI_DEFAULT_TLS_SIDECAR_KAFKA_IMAGE,STRIMZI_DEFAULT_TLS_SIDECAR_KAFKA_IMAGE>>` environment variable of the Cluster Operator.
+`spec.kafka.tlsSidecar.resources`::
+An object configuring the resource limits and requests for the sidecar container which provides TLS support for Kafka brokers.
+For information about the accepted JSON format, see <<resources_json_config>>.
 `spec.zookeeper.replicas`::
 The number of Zookeeper nodes.
 `spec.zookeeper.image`::
-The Docker image to use for the Zookeeper nodes. 
-Default is determined by the value of the `<<STRIMZI_DEFAULT_ZOOKEEPER_IMAGE,STRIMZI_DEFAULT_ZOOKEEPER_IMAGE>>` environment variable of the Cluster Operator.
+The Docker image to be used by the Zookeeper nodes.
+The default value is determined by the value specified in the `<<STRIMZI_DEFAULT_ZOOKEEPER_IMAGE,STRIMZI_DEFAULT_ZOOKEEPER_IMAGE>>` environment variable of the Cluster Operator.
 `spec.zookeeper.livenessProbe.initialDelaySeconds`::
 The initial delay for the liveness probe for each Zookeeper node. 
 Default is 15.
@@ -125,7 +131,7 @@ The storage configuration for the Zookeeper nodes. See section <<storage_configu
 `spec.zookeeper.metrics`::
 The JMX exporter configuration for exposing metrics from Zookeeper nodes.
 When this field is absent no metrics will be exposed.
-`spec.zookeeper.logging`::
+[[spec.zookeeper.logging]]`spec.zookeeper.logging`::
 An object that specifies inline logging levels or the name of external config map that specifies the logging levels.
 When this field is absent default values are used.
 List of loggers which can be set:
@@ -134,19 +140,25 @@ zookeeper.root.logger
 
 `spec.zookeeper.resources`::
 An object configuring the resource limits and requests for Zookeeper broker containers.
-The accepted JSON format is described in the <<resources_json_config>> section.
+For information about the accepted JSON format, see <<resources_json_config>> section.
 `spec.zookeeper.jvmOptions`::
 An object allowing the JVM running Zookeeper to be configured. 
-The accepted JSON format is described in the <<jvm_json_config>> section.
+For information about the accepted JSON format, see <<jvm_json_config>> section.
 `spec.zookeeper.affinity`::
 An object allowing control over how the Zookeeper pods are scheduled to nodes.
 The format of the corresponding key is the same as the content supported in the Pod `affinity` in {ProductPlatformName}.
 See section <<affinity>> for more details.
+`spec.zookeeper.tlsSidecar.image`::
+The Docker image to be used by the sidecar container which provides TLS support for Zookeeper nodes.
+The default value is determined by the value specified in the `<<STRIMZI_DEFAULT_TLS_SIDECAR_ZOOKEEPER_IMAGE,STRIMZI_DEFAULT_TLS_SIDECAR_ZOOKEEPER_IMAGE>>` environment variable of the Cluster Operator.
+`spec.zookeeper.tlsSidecar.resources`::
+An object configuring the resource limits and requests for the sidecar container which provides TLS support for Zookeeper nodes.
+For information about the accepted JSON format, see <<resources_json_config>>.
 `spec.topicOperator`::
 An object representing the topic operator configuration. 
 See the <<topic_operator_json_config>> documentation for further details.
-More info about the topic operator in the related <<Topic operator>> documentation page.
- 
+More info about the topic operator in the related xref:topic-operator-{context}[Topic Operator] documentation page.
+
 The following is an example of a Kafka resource.
 
 .Example `Kafka` resource
@@ -215,10 +227,10 @@ The resources created by the Cluster Operator in the {ProductPlatformName} clust
 
 `[cluster-name]-zookeeper`:: StatefulSet which is in charge of managing the Zookeeper node pods
 `[cluster-name]-kafka`:: StatefulSet which is in charge of managing the Kafka broker pods
-`[cluster-name]-zookeeper-headless`:: Service needed to have DNS resolve the Zookeeper pods IP addresses directly
-`[cluster-name]-kafka-headless`:: Service needed to have DNS resolve the Kafka broker pods IP addresses directly
-`[cluster-name]-zookeeper`:: Service used by Kafka brokers to connect to Zookeeper nodes as clients
-`[cluster-name]-kafka`:: Service can be used as bootstrap servers for Kafka clients
+`[cluster-name]-zookeeper-nodes`:: Service needed to have DNS resolve the Zookeeper pods IP addresses directly
+`[cluster-name]-kafka-brokers`:: Service needed to have DNS resolve the Kafka broker pods IP addresses directly
+`[cluster-name]-zookeeper-client`:: Service used by Kafka brokers to connect to Zookeeper nodes as clients
+`[cluster-name]-kafka-bootstrap`:: Service can be used as bootstrap servers for Kafka clients
 `[cluster-name]-zookeeper-metrics-config`:: ConfigMap which contains the Zookeeper metrics configuration and mounted as a volume by the Zookeeper node pods
 `[cluster-name]-kafka-metrics-config`:: ConfigMap which contains the Kafka metrics configuration and mounted as a volume by the Kafka broker pods
 `[cluster-name]-zookeeper-config`:: 
@@ -479,45 +491,53 @@ Persistent Volume Claim for the volume used for storing data for the Kafka broke
 `data-[cluster-name]-zookeeper-[idx]`:: 
 Persistent Volume Claim for the volume used for storing data for the Zookeeper node pod `[idx]`.
 
-See <<kafka.strimzi.io-v1alpha1-type-EphemeralStorage>> and <<kafka.strimzi.io-v1alpha1-type-PersistentClaimStorage>> for further details.
+See <<type-EphemeralStorage>> and <<type-PersistentClaimStorage>> for further details.
 
 ===== Metrics
 
-{ProductName} uses the [Prometheus JMX exporter](https://github.com/prometheus/jmx_exporter) in order to expose metrics on each node. 
+{ProductName} uses the link:https://github.com/prometheus/jmx_exporter[Prometheus JMX exporter^] in order to expose metrics on each node.
 It is possible to configure a `metrics` object in the `kafka` and `zookeeper` objects in `Kafka` resources, and likewise a `metrics` object in the `spec` of `KafkaConnect` resources. 
 In all cases the `metrics` object should be the configuration for the JMX exporter. 
 You can find more information on how to use it in the corresponding GitHub repo.
 
-For more information about using the metrics with Prometheus and Grafana, see <<_metrics>>
+For more information about using the metrics with Prometheus and Grafana, see xref:metrics[Metrics]
 
+
+[[logging_examples]]
 ===== Logging
-The `logging` field allows the configuration of loggers. These loggers are:
-[source]
-log4j.rootLogger
-connect.root.logger.level
-log4j.logger.org.apache.zookeeper
-log4j.logger.org.I0Itec.zkclient
-log4j.logger.org.reflections
+The `logging` field allows the configuration of loggers. These loggers for Zookeeper and Kafka are available in the <<spec.zookeeper.logging,`spec.zookeeper.logging`>> and <<spec.kafka.logging,`spec.kafka.logging`>> sections respectively.
 
 The setting can be done in one of two ways. Either by specifying the loggers and their levels directly or by using a custom config map.
-An example of the latter would look like this::
+An example would look like this:
 
 [source,yaml]
 ----
   logging:
-    fromConfigMap:
-      name : customConfigMap
+    type: inline
+    loggers:
+      logger.name: "INFO"
+----
+The `INFO` can be replaced with any log4j logger level. The available logger levels are `INFO`, `ERROR`, `WARN`, `TRACE`, `DEBUG`, `FATAL` or `OFF`.
+The informations about log levels can be found in the https://logging.apache.org/log4j/2.x/manual/customloglevels.html[log4j manual].
+
+[source,yaml]
+----
+  logging:
+    type: external
+    name: customConfigMap
 ----
 
-The difference between these two options is that latter is not validated and does not support default values.
-That means user can supply any logging configuration, even if it is incorrect.
-First option supports default values.
+When using external ConfigMap remember to place your custom ConfigMap under `log4j.properties` key.
+
+The difference between these two options is that the latter is not validated and does not support default values.
+That means the user can supply any logging configuration, even if it is incorrect.
+The first option supports default values.
 
 
 [[resources_json_config]]
 ===== Resource limits and requests
 
-It is possible to configure {ProductPlatformName} resource limits and requests on for the `kafka`, `zookeeper` and `topicOperator` objects in the `Kafka` resource and for for the `spec` object of the `KafkaConnect resource.
+It is possible to configure {ProductPlatformName} resource limits and requests for the `kafka`, `zookeeper`, and `topicOperator` objects in the `Kafka` resource and for the `spec` object of the `KafkaConnect` resource.
 The object may have a `requests` and a `limits` property, each having the same schema, consisting of `cpu` and `memory` properties.
 The {ProductPlatformName} syntax is used for the values of `cpu` and `memory`.
 
@@ -761,8 +781,8 @@ The YAML representation of the 'topicOperator` has no mandatory fields and if th
 The configurable fields are the following :
 
 `image`::
-Docker image to use for the topic operator. Default is determined by the value of the
-`<<STRIMZI_DEFAULT_TOPIC_operator_IMAGE,STRIMZI_DEFAULT_TOPIC_operator_IMAGE>>` environment variable of the Cluster Operator.
+The Docker image to be used by the Topic Operator.
+The default value is determined by the value specified in the `<<STRIMZI_DEFAULT_TOPIC_OPERATOR_IMAGE,STRIMZI_DEFAULT_TOPIC_OPERATOR_IMAGE>>` environment variable of the Cluster Operator.
 `watchedNamespace`::
 The {ProductPlatformName} namespace in which the topic operator watches for topic ConfigMaps. Default is the namespace
 where the topic operator is running.
@@ -780,6 +800,12 @@ described in the <<resources_json_config>> section.
 `affinity`::
 Node and Pod affinity for the Topic Operator, as described in the <<affinity>> section.
 The format of the corresponding key is the same as the content supported in the Pod `affinity` in {ProductPlatformName}.
+`tlsSidecar.image`::
+The Docker image to be used by the sidecar container which provides TLS support for Topic Operator.
+The default value is determined by the value specified in the `<<STRIMZI_DEFAULT_TLS_SIDECAR_TOPIC_OPERATOR_IMAGE,STRIMZI_DEFAULT_TLS_SIDECAR_TOPIC_OPERATOR_IMAGE>>` environment variable of the Cluster Operator.
+`tlsSidecar.resources`::
+An object configuring the resource limits and requests for the sidecar container which provides TLS support for the Topic Operator.
+For information about the accepted JSON format, see <<resources_json_config>>.
 
 .Example Topic Operator JSON configuration
 [source,json]
@@ -787,12 +813,12 @@ The format of the corresponding key is the same as the content supported in the 
 { "reconciliationIntervalMs": "900000", "zookeeperSessionTimeoutMs": "20000" }
 ----
 
-More information about these configuration parameters in the related <<Topic Operator>> documentation page.
+More information about these configuration parameters in the related xref:topic-operator-{context}[Topic Operator] documentation page.
 
 [[kafka_connect_config_map_details]]
 ==== Kafka Connect
 
-The operator watches for `KafkaConnect` resource in order to find and get configuration for a Kafka Connect cluster to deploy.
+The operator watches for the `KafkaConnect` resource in order to find and get configuration for a Kafka Connect cluster to deploy.
 
 The `KafkaConnectS2I` resource provides configuration for a Kafka Connect cluster deployment using Build and Source2Image features (works only with {OpenShiftName})
 
@@ -806,17 +832,16 @@ The `KafkaConnect` resource supports the following within its `spec`:
 Number of Kafka Connect worker nodes. Default is 1.
 
 `image`:: 
-The Docker image to use for the Kafka Connect workers. 
-Default is determined by the value of the
-`<<STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE,STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE>>` environment variable of the Cluster Operator.
+The Docker image to be used by the Kafka Connect workers.
+The default value is determined by the value specified in the `<<STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE,STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE>>` environment variable of the Cluster Operator.
 If S2I is used (only on {OpenShiftName}), then it should be the related S2I image.
 
 `healthcheck-delay`::
-The initial delay for the liveness and readiness probes for each Kafka Connect worker node. 
+The initial delay in seconds for the liveness and readiness probes for each Kafka Connect worker node.
 Default is 60.
 
 `healthcheck-timeout`::
-The timeout on the liveness and readiness probes for each Kafka Connect worker node. 
+The timeout in seconds of the liveness and readiness probes for each Kafka Connect worker node.
 Default is 5.
 
 `connect-config`::
@@ -829,11 +854,11 @@ When this field is absent no metrics will be exposed.
 
 `resources`:: 
 A JSON string configuring the resource limits and requests for Kafka Connect containers.
-The accepted JSON format is described in the <<resources_json_config>> section.
+For information about the accepted JSON format, see <<resources_json_config>> section.
 
 `jvmOptions`:: 
 A JSON string allowing the JVM running Kafka Connect to be configured.
-The accepted JSON format is described in the <<jvm_json_config>> section.
+For information about the accepted JSON format, see <<jvm_json_config>> section.
 
 `affinity`::
 Node and Pod affinity for the Kafka Connect pods, as described in the <<affinity>> section.
@@ -858,14 +883,14 @@ spec:
     initialDelaySeconds: 60
     timeoutSeconds: 5
   config: 
-    bootstrap.servers: my-cluster-kafka:9092
+    bootstrap.servers: my-cluster-kafka-bootstrap:9092
 ----
 
 The resources created by the Cluster Operator into the {ProductPlatformName} cluster will be the following :
 
 [connect-cluster-name]-connect::
 Deployment which is in charge to create the Kafka Connect worker node pods.
-[connect-cluster-name]-connect::
+[connect-cluster-name]-connect-api::
 Service which exposes the REST interface for managing the Kafka Connect cluster.
 [connect-cluster-name]-metrics-config::
 ConfigMap which contains the Kafka Connect metrics configuration and is mounted as a volume by the Kafka Connect pods.
@@ -909,7 +934,7 @@ metadata:
   name: my-connect-cluster
 spec:
   config:
-    bootstrap.servers: my-cluster-kafka:9092
+    bootstrap.servers: my-cluster-kafka-bootstrap:9092
     group.id: my-connect-cluster
     offset.storage.topic: my-connect-cluster-offsets
     config.storage.topic: my-connect-cluster-configs
@@ -947,6 +972,17 @@ INFO:: The Cluster Operator does not validate the provided configuration.
 When invalid configuration is provided, the Kafka Connect cluster might not start or might become unstable. 
 In such cases, the configuration in the `config` object should be fixed and the Cluster Operator will roll out the new configuration to all Kafka Connect instances.
 
+===== Logging
+The `logging` field allows the configuration of loggers. These loggers are:
+[source]
+log4j.rootLogger
+connect.root.logger.level
+log4j.logger.org.apache.zookeeper
+log4j.logger.org.I0Itec.zkclient
+log4j.logger.org.reflections
+
+For information on the logging options and examples of how to set logging, see <<logging_examples, logging examples>> for Kafka.
+
 ===== Kafka Connect S2I deployment
 
 When using {ProductName} together with an {OpenShiftName} cluster, a user can deploy Kafka Connect with support for https://docs.openshift.org/3.9/dev_guide/builds/index.html[{OpenShiftName} Builds] and https://docs.openshift.org/3.9/creating_images/s2i.html#creating-images-s2i[Source-to-Image (S2I)].
@@ -970,7 +1006,7 @@ spec:
     initialDelaySeconds: 60
     timeoutSeconds: 5
   config: 
-    bootstrap.servers: my-cluster-kafka:9092
+    bootstrap.servers: my-cluster-kafka-bootstrap:9092
 ----
 
 The S2I deployment is very similar to the regular Kafka Connect deployment (as represented by the `KafkaConnect` resource).
@@ -994,31 +1030,31 @@ The default value of the `image` option is determined by the value of the `<<STR
 All other options have the same meaning as for the regular `KafkaConnect` deployment.
 
 Once the Kafka Connect S2I cluster is deployed, new plugins can be added by starting a new {OpenShiftName} build.
-Before starting the build, a directory with all the KafkaConnect plugins which should be added has to be created.
+Before starting the build, a directory with all the Kafka Connect plugins which should be added has to be created.
 The plugins and all their dependencies can be in a single directory or can be split into multiple subdirectories.
-For example:
+For example the following directory structure would be created in order to add the MySQL and Postgres CDC (change data capture) connectors provided by the link:http://debezium.io/[Debezium^] project:
 
 [source,shell]
 ----
 $ tree ./s2i-plugins/
 ./s2i-plugins/
 ├── debezium-connector-mysql
+│   ├── antlr4-runtime-4.7.jar
 │   ├── CHANGELOG.md
 │   ├── CONTRIBUTE.md
 │   ├── COPYRIGHT.txt
-│   ├── debezium-connector-mysql-0.7.1.jar
-│   ├── debezium-core-0.7.1.jar
+│   ├── debezium-connector-mysql-0.8.1.Final.jar
+│   ├── debezium-core-0.8.1.Final.jar
 │   ├── LICENSE.txt
 │   ├── mysql-binlog-connector-java-0.13.0.jar
 │   ├── mysql-connector-java-5.1.40.jar
-│   ├── README.md
-│   └── wkb-1.0.2.jar
+│   └── README.md
 └── debezium-connector-postgres
     ├── CHANGELOG.md
     ├── CONTRIBUTE.md
     ├── COPYRIGHT.txt
-    ├── debezium-connector-postgres-0.7.1.jar
-    ├── debezium-core-0.7.1.jar
+    ├── debezium-connector-postgres-0.8.1.Final.jar
+    ├── debezium-core-0.8.1.Final.jar
     ├── LICENSE.txt
     ├── postgresql-42.0.0.jar
     ├── protobuf-java-2.6.1.jar
@@ -1060,110 +1096,123 @@ They will not be added to the Docker image from a previous build.
 To add multiple plugins to the deployment, they all have to be added within the same build.
 
 
-=== Provisioning Role-Based Access Control (RBAC) for the operator
+[id="provisioning-rbac-for-the-cluster-operator"]
 
-For the operator to function it needs permission within the {ProductPlatformName} cluster to interact with
-the resources it manages (ConfigMaps, Pods, Deployments, StatefulSets, Services and so on).
-Such permission is described in terms of {ProductPlatformName} role-based access controls.
+=== Provisioning Role-Based Access Control (RBAC) for the Cluster Operator
 
-==== Using a ServiceAccount
+For the Cluster Operator to function it needs permission within the {ProductPlatformName} cluster to interact with the resources it manages and interacts with. 
+These include the desired resources, such as  `Kafka`, `Kafka Connect`, and so on, as well as the managed resources, such as `ConfigMaps`, `Pods`, `Deployments`, `StatefulSets`, `Services`, and so on.
+Such permission is described in terms of {ProductPlatformName} role-based access control (RBAC) resources:
 
-The operator is best run using a ServiceAccount:
+* `ServiceAccount`,
+* `Role` and `ClusterRole`,
+* `RoleBinding` and `ClusterRoleBinding`.
+
+In addition to running under its own `ServiceAccount` with a `ClusterRoleBinding`, the Cluster Operator manages some RBAC resources because some of the components need access to {ProductPlatformName} resources.
+
+{ProductPlatformName} also includes privilege escalation protections that prevent components operating under one `ServiceAccount` from granting other `ServiceAccounts` privileges that the granting `ServiceAccount` does not have.
+Because the Cluster Operator must be able to create the `ClusterRoleBindings` and `RoleBindings` needed by resources it manages, the Cluster Operator must also have those same privileges.
+
+[id="delegated-privileges"]
+==== Delegated privileges
+
+When the Cluster Operator deploys resources for a desired `Kafka` resource it also creates `ServiceAccounts`, `RoleBindings` and `ClusterRoleBindings`, as follows:
+
+* The Kafka broker pods use a `ServiceAccount` called `<cluster-name>-kafka` (where `<cluster-name>` is a placeholder for the name of the `Kafka` resource)
+  - When the rack feature is used, the `strimzi-<cluster-name>-kafka-init` `ClusterRoleBinding` is used to grant this `ServiceAccount` access to the nodes within the cluster via a `ClusterRole` called `strimzi-kafka-broker`
+  - When the rack feature is not used no binding is created.
+* The Zookeeper pods use the default `ServiceAccount` as they have no need to access {ProductPlatformName} resources
+* The Topic Operator pod uses a `ServiceAccount` called `<cluster-name>-topic-operator` (where `<cluster-name>` is a placeholder for the name of the `Kafka` resource)
+    - The Topic Operator produces {ProductPlatformName} events with status information, so the `ServiceAccount` is bound to a `ClusterRole` called `strimzi-topic-operator` which grants this access via the `strimzi-topic-operator-role-binding` `RoleBinding`.
+
+The pods for `KafkaConnect` and `KafkaConnectS2I` resources use the default `ServiceAccount`, since they require no access to {ProductPlatformName} resources.
+
+
+==== Using a `ServiceAccount`
+
+The Cluster Operator is best run using a `ServiceAccount`:
 
 [source,yaml,options="nowrap"]
-.Example ServiceAccount for the Cluster Operator
+.Example `ServiceAccount` for the Cluster Operator
 ----
-include::examples/install/cluster-operator/01-service-account.yaml[]
+include::examples/install/cluster-operator/01-ServiceAccount-strimzi-cluster-operator.yaml[]
 ----
 
-The Deployment of the operator then needs to specify this in the `serviceAccountName` of its `template.spec`:
+The `Deployment` of the operator then needs to specify this in its `spec.template.spec.serviceAccountName`:
 
 [source,yaml,numbered,options="nowrap",highlight='12']
-.Partial example Deployment for the Cluster Operator
+.Partial example `Deployment` for the Cluster Operator
 ----
-include::examples/install/cluster-operator/08-deployment.yaml[lines=1..13]
+include::examples/install/cluster-operator/05-Deployment-strimzi-cluster-operator.yaml[lines=1..13]
       # ...
 ----
 
-Note line 12, where the the `strimzi-cluster-operator` ServiceAccount is specified as the `serviceAccountName`.
+Note line 12, where the the `strimzi-cluster-operator` `ServiceAccount` is specified as the `serviceAccountName`.
 
-If the rack awareness feature is used, a Kafka init container will be started before the broker container in order to enable it.
-The application inside this container is best run using a ServiceAccount:
 
-[source,yaml,options="nowrap"]
-.Example ServiceAccount for the Kafka init container
-----
-include::examples/install/cluster-operator/04-service-account-kafka.yaml[]
-----
+==== Defining `ClusterRoles`
 
-The Cluster Operator will be in charge of configuring this ServiceAccount as `serviceAccountName` for the Kafka init container during cluster deployment.
+The Cluster Operator needs to operate using `ClusterRoles` that give it access to the necessary resources. 
+Depending on the {ProductPlatformName} cluster setup, a cluster administrator might be needed to create the `ClusterRoles`.
 
-==== Defining a Role
+NOTE: Cluster administrator rights are only needed for the creation of the `ClusterRoles`. 
+The Cluster Operator will not run under the cluster admin account.
 
-The Cluster Operator needs to operate using a Role that gives it access to the necessary resources.
-Depending on the {ProductPlatformName} cluster setup, a cluster administrator might be needed to create the Role.
-Cluster administrator rights are only needed for the creation of the Role.
-The Role itself does not contain any cluster administrator privileges, and the Cluster Operator will not run under the cluster admin account.
-The Role follows the "principle of least privilege" and contains only those privileges needed by the Cluster Operator to operate Kafka, Kafka Connect and Zookeeper clusters.
-The assigned privileges allow the Cluster Operator to manage {ProductPlatformName} resources such as StatefulSets, Deployments, Pods and ConfigMaps.
+The `ClusterRoles` follow the "principle of least privilege" and contain only those privileges needed by the Cluster Operator to operate Kafka, Kafka Connect, and Zookeeper clusters. The first set of assigned privileges allow the Cluster Operator to manage {ProductPlatformName} resources such as `StatefulSets`, `Deployments`, `Pods`, and `ConfigMaps`.
 
 [source,yaml,options="nowrap"]
-.Example Role for the Cluster Operator
+.Example `Role` for the Cluster Operator
 ----
-include::examples/install/cluster-operator/02-role.yaml[]
+include::examples/install/cluster-operator/02-ClusterRole-strimzi-cluster-operator-role.yaml[]
 ----
 
-When the Role cannot be created, the predefined ClusterRole named `edit` can be used instead.
-
-If the rack awareness feature is used, the started Kafka init container needs to operate using a ClusterRole that gives it access to the necessary resources.
+The `strimzi-kafka-broker` `ClusterRole` represents the access needed by the init container in Kafka pods that is used for the rack feature. As described in the xref:delegated-privileges[Delegated privileges] section, this role is also needed by the Cluster Operator in order to be able to delegate this access.
 
 [source,yaml,options="nowrap"]
-.Example Role for the Kafka init container
+.`ClusterRole` for the Cluster Operator allowing it to delegate access to {ProductPlatformName} nodes to the Kafka broker pods
 ----
-include::examples/install/cluster-operator/05-role-kafka.yaml[]
+# These are the privileges needed by the init container
+# in Kafka broker pods.
+# The Cluster Operator also needs these privileges since 
+# it binds the Kafka pods' ServiceAccount to this 
+# role.
+include::examples/install/cluster-operator/03-ClusterRole-strimzi-kafka-broker.yaml[]
 ----
 
-The assigned privileges allow the Kafka init container to get Nodes information.
-
-==== Defining a RoleBinding
-
-Finally, the operator needs a RoleBinding which associates its Role with its ServiceAccount:
+The `strimzi-topic-operator` `ClusterRole` represents the access needed by the Topic Operator. As described in the xref:delegated-privileges[Delegated privileges] section, this role is also needed by the Cluster Operator in order to be able to delegate this access.
 
 [source,yaml,options="nowrap"]
-.Example RoleBinding for the Cluster Operator
+.`ClusterRole` for the Cluster Operator allowing it to delegate access to events to the Topic Operator
 ----
-include::examples/install/cluster-operator/03-role-binding.yaml[]
-----
-
-In case the `edit` ClusterRole is being used, the RoleBinding has to be modified to refer to it instead of the `strimzi-cluster-operator-role` Role:
-
-[source,yaml,options="nowrap"]
-.Example RoleBinding for the Cluster Operator using the `edit` ClusterRole
-----
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: RoleBinding
-metadata:
-  name: strimzi-cluster-operator-binding
-  labels:
-    app: strimzi
-subjects:
-  - kind: ServiceAccount
-    name: strimzi-cluster-operator
-roleRef:
-  kind: ClusterRole
-  name: edit
-  apiGroup: rbac.authorization.k8s.io
+# These are the privileges needed by the Topic Operator.
+# The Cluster Operator also needs these privileges since 
+# it binds the Topic Operator's  ServiceAccount to this 
+# role.
+include::examples/install/cluster-operator/04-ClusterRole-strimzi-topic-operator.yaml[]
 ----
 
-If the rack awareness feature is used, the Kafka init container needs a ClusterRoleBinding which associates its ClusterRole with its ServiceAccount:
+
+==== Defining `ClusterRoleBindings`
+
+The operator needs a `ClusterRoleBinding` which associates its `ClusterRole` with its `ServiceAccount`:
 
 [source,yaml,options="nowrap"]
-.Example ClusterRoleBinding for the Kafka init container
+.Example `RoleBinding` for the Cluster Operator
 ----
-include::examples/install/cluster-operator/06-role-binding-kafka.yaml[]
+include::examples/install/cluster-operator/02-ClusterRoleBinding-strimzi-cluster-operator.yaml[]
 ----
 
-It's important to highlight that the `namespace` field, specified in the ServiceAccount subject, needs to be the same namespace where the Kafka cluster will be deployed.
+`ClusterRoleBindings` are also needed for the `ClusterRoles` needed for delegation:
+
+[source,yaml,options="nowrap"]
+.Example `RoleBinding` for the Cluster Operator
+----
+---
+include::examples/install/cluster-operator/03-ClusterRoleBinding-strimzi-cluster-operator-kafka-broker-delegation.yaml[]
+---
+include::examples/install/cluster-operator/04-ClusterRoleBinding-strimzi-cluster-operator-topic-operator-delegation.yaml[]
+---
+----
 
 === Operator configuration
 
@@ -1192,8 +1241,12 @@ increased when using {ProductName} on clusters where regular {ProductPlatformNam
 The image name to use as a default when deploying Kafka, if
 no image is specified as the `kafka-image` in the <<kafka_config_map_details,Kafka cluster ConfigMap>>.
 
-[[STRIMZI_DEFAULT_INIT_KAFKA_IMAGE]] `STRIMZI_DEFAULT_INIT_KAFKA_IMAGE`:: Optional, default `strimzi/init-kafka:latest`.
-The image name to use as default for the init container started before the broker for doing initial configuration work (that is, rack support), if no image is specified as the `init-kafka-image` in the <<kafka_config_map_details,Kafka cluster ConfigMap>>.
+[[STRIMZI_DEFAULT_KAFKA_INIT_IMAGE]] `STRIMZI_DEFAULT_KAFKA_INIT_IMAGE`:: Optional, default `strimzi/kafka-init:latest`.
+The image name to use as default for the init container started before the broker for doing initial configuration work (that is, rack support), if no image is specified as the `kafka-init-image` in the <<kafka_config_map_details,Kafka cluster ConfigMap>>.
+
+[[STRIMZI_DEFAULT_TLS_SIDECAR_KAFKA_IMAGE]] `STRIMZI_DEFAULT_TLS_SIDECAR_KAFKA_IMAGE`:: Optional, default `strimzi/kafka-stunnel:latest`.
+The image name to be used as a default when deploying the sidecar container which provides TLS support for Kafka if
+no image is specified as the `spec.kafka.tlsSidecar.image` in the <<kafka_config_map_details,Kafka cluster ConfigMap>>.
 
 [[STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE]] `STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE`:: Optional, default `strimzi/kafka-connect:latest`.
 The image name to use as a default when deploying Kafka Connect, if
@@ -1213,8 +1266,16 @@ of the Kafka cluster ConfigMap.
 The image name to use as a default when deploying Zookeeper, if
 no image is specified as the `zookeeper-image` in the <<kafka_config_map_details,Kafka cluster ConfigMap>>.
 
+[[STRIMZI_DEFAULT_TLS_SIDECAR_ZOOKEEPER_IMAGE]] `STRIMZI_DEFAULT_TLS_SIDECAR_ZOOKEEPER_IMAGE`:: Optional, default `strimzi/zookeeper-stunnel:latest`.
+The image name to use as a default when deploying the sidecar container which provides TLS support for Zookeeper, if
+no image is specified as the `spec.zookeeper.tlsSidecar.image` in the <<kafka_config_map_details,Kafka cluster ConfigMap>>.
+
 [[STRIMZI_LOG_LEVEL]] `STRIMZI_LOG_LEVEL`:: Optional, default `INFO`.
 The level for printing logging messages. The value can be set to: `ERROR`, `WARNING`, `INFO`, `DEBUG` and `TRACE`.
+
+[[STRIMZI_DEFAULT_TLS_SIDECAR_TOPIC_OPERATOR_IMAGE]] `STRIMZI_DEFAULT_TLS_SIDECAR_TOPIC_OPERATOR_IMAGE`:: Optional, default `strimzi/topic-operator-stunnel:latest`.
+The image name to use as a default when deploying the sidecar container which provides TLS support for the Topic Operator, if
+no image is specified as the `spec.topicOperator.tlsSidecar.image` in the <<kafka_config_map_details,Kafka cluster ConfigMap>>.
 
 [[multi-namespace]]
 ==== Watching multiple namespaces

@@ -121,7 +121,7 @@ public class KafkaConnectS2IAssemblyOperatorTest {
             List<Service> capturedServices = serviceCaptor.getAllValues();
             context.assertEquals(1, capturedServices.size());
             Service service = capturedServices.get(0);
-            context.assertEquals(connect.getName(), service.getMetadata().getName());
+            context.assertEquals(connect.getServiceName(), service.getMetadata().getName());
             context.assertEquals(connect.generateService(), service, "Services are not equal");
 
             // Verify Deployment Config
@@ -332,7 +332,7 @@ public class KafkaConnectS2IAssemblyOperatorTest {
             List<Service> capturedServices = serviceCaptor.getAllValues();
             context.assertEquals(1, capturedServices.size());
             Service service = capturedServices.get(0);
-            context.assertEquals(compareTo.getName(), service.getMetadata().getName());
+            context.assertEquals(compareTo.getServiceName(), service.getMetadata().getName());
             context.assertEquals(compareTo.generateService(), service, "Services are not equal");
 
             // Verify Deployment Config
@@ -603,7 +603,7 @@ public class KafkaConnectS2IAssemblyOperatorTest {
             // Verify service
             context.assertEquals(1, serviceNameCaptor.getAllValues().size());
             context.assertEquals(clusterCmNamespace, serviceNamespaceCaptor.getValue());
-            context.assertEquals(connect.getName(), serviceNameCaptor.getValue());
+            context.assertEquals(connect.getServiceName(), serviceNameCaptor.getValue());
 
             // Vertify deployment Config
             context.assertEquals(1, dcNameCaptor.getAllValues().size());
@@ -651,7 +651,7 @@ public class KafkaConnectS2IAssemblyOperatorTest {
         when(mockConnectOps.get(eq(clusterCmNamespace), eq("bar"))).thenReturn(bar);
 
         // providing the list of ALL DeploymentConfigs for all the Kafka Connect S2I clusters
-        Labels newLabels = Labels.forType(AssemblyType.CONNECT_S2I);
+        Labels newLabels = Labels.forKind(KafkaConnectS2IAssembly.RESOURCE_KIND);
         when(mockDcOps.list(eq(clusterCmNamespace), eq(newLabels))).thenReturn(
                 asList(KafkaConnectS2ICluster.fromCrd(bar).generateDeploymentConfig(),
                         KafkaConnectS2ICluster.fromCrd(baz).generateDeploymentConfig()));
@@ -679,8 +679,8 @@ public class KafkaConnectS2IAssemblyOperatorTest {
                 mockCmOps, mockDcOps, mockServiceOps, mockIsOps, mockBcOps, mockSecretOps) {
 
             @Override
-            public void createOrUpdate(Reconciliation reconciliation, KafkaConnectS2IAssembly assemblyCm, List<Secret> assemblySecrets, Handler<AsyncResult<Void>> h) {
-                createdOrUpdated.add(assemblyCm.getMetadata().getName());
+            public void createOrUpdate(Reconciliation reconciliation, KafkaConnectS2IAssembly kafkaConnectS2IAssembly, List<Secret> assemblySecrets, Handler<AsyncResult<Void>> h) {
+                createdOrUpdated.add(kafkaConnectS2IAssembly.getMetadata().getName());
                 async.countDown();
                 h.handle(Future.succeededFuture());
             }
@@ -693,7 +693,7 @@ public class KafkaConnectS2IAssemblyOperatorTest {
         };
 
         // Now try to reconcile all the Kafka Connect S2I clusters
-        ops.reconcileAll("test", clusterCmNamespace, Labels.EMPTY);
+        ops.reconcileAll("test", clusterCmNamespace);
 
         async.await();
 

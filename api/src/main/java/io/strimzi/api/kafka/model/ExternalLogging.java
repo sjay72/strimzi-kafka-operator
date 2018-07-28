@@ -4,17 +4,33 @@
  */
 package io.strimzi.api.kafka.model;
 
-/** Logging config comes from an existing, user-supplied config map*/
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.strimzi.crdgenerator.annotations.Description;
+import io.sundr.builder.annotations.Buildable;
+
+/**
+ * Logging config comes from an existing, user-supplied config map
+ */
+@Buildable(
+        editableEnabled = false,
+        generateBuilderPackage = true,
+        builderPackage = "io.strimzi.api.kafka.model"
+)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ExternalLogging extends Logging {
 
-    /** The name of the configmap from which to get the logging config */
+    private static final long serialVersionUID = 1L;
+    public static final String TYPE_EXTERNAL = "external";
+
     private String name;
 
+    @Description("Must be `" + TYPE_EXTERNAL + "`")
     @Override
     public String getType() {
-        return "external";
+        return TYPE_EXTERNAL;
     }
 
+    @Description("The name of the `ConfigMap` from which to get the logging configuration.")
     public String getName() {
         return name;
     }

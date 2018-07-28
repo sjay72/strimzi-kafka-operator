@@ -5,6 +5,7 @@
 package io.strimzi.certs;
 
 import io.fabric8.kubernetes.api.model.Secret;
+import io.strimzi.test.TestUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -25,6 +26,7 @@ public class SecretCertProviderTest {
 
     @BeforeClass
     public static void before() {
+        TestUtils.assumeLinux();
         ssl = new OpenSslCertManager();
         secretCertProvider = new SecretCertProvider();
     }
@@ -34,8 +36,8 @@ public class SecretCertProviderTest {
 
         Base64.Decoder decoder = Base64.getDecoder();
 
-        File key = File.createTempFile("tls", "key");
-        File cert = File.createTempFile("tls", "crt");
+        File key = File.createTempFile("key-", ".key");
+        File cert = File.createTempFile("crt-", ".crt");
 
         ssl.generateSelfSignedCert(key, cert, 365);
 
@@ -56,15 +58,15 @@ public class SecretCertProviderTest {
 
         Base64.Decoder decoder = Base64.getDecoder();
 
-        File key = File.createTempFile("tls", "key");
-        File cert = File.createTempFile("tls", "crt");
+        File key = File.createTempFile("key-", ".key");
+        File cert = File.createTempFile("crt-", ".crt");
 
         ssl.generateSelfSignedCert(key, cert, 365);
 
         Secret secret = secretCertProvider.createSecret("my-namespace", "my-secret", key, cert, Collections.emptyMap());
 
-        File addedKey = File.createTempFile("tls", "key");
-        File addedCert = File.createTempFile("tls", "crt");
+        File addedKey = File.createTempFile("added-key-", ".key");
+        File addedCert = File.createTempFile("added-crt-", ".crt");
 
         ssl.generateSelfSignedCert(addedKey, addedCert, 365);
 

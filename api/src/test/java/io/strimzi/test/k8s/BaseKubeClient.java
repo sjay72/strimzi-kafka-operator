@@ -33,6 +33,7 @@ public abstract class BaseKubeClient<K extends BaseKubeClient<K>> implements Kub
     private static final Logger LOGGER = LogManager.getLogger(BaseKubeClient.class);
 
     public static final String CREATE = "create";
+    public static final String APPLY = "apply";
     public static final String DELETE = "delete";
     public static final String DEPLOYMENT = "deployment";
     public static final String STATEFUL_SET = "statefulset";
@@ -171,9 +172,9 @@ public abstract class BaseKubeClient<K extends BaseKubeClient<K>> implements Kub
     }
 
     @Override
-    public K createContent(String yamlContent) {
+    public K applyContent(String yamlContent) {
         try (Context context = defaultContext()) {
-            Exec.exec(yamlContent, namespacedCommand(CREATE, "-f", "-"));
+            Exec.exec(yamlContent, namespacedCommand(APPLY, "-f", "-"));
             return (K) this;
         }
     }
@@ -203,10 +204,15 @@ public abstract class BaseKubeClient<K extends BaseKubeClient<K>> implements Kub
     }
 
     @Override
-    public ProcessResult exec(String pod, String... command) {
+    public ProcessResult execInPod(String pod, String... command) {
         List<String> cmd = namespacedCommand("exec", pod, "--");
         cmd.addAll(asList(command));
         return Exec.exec(cmd);
+    }
+
+    @Override
+    public ProcessResult exec(String... command) {
+        return Exec.exec(asList(command));
     }
 
     enum ExType {
@@ -235,13 +241,23 @@ public abstract class BaseKubeClient<K extends BaseKubeClient<K>> implements Kub
     }
 
     @Override
-    public K waitForDeployment(String name) {
+    public K waitForDeployment(String name, int expected) {
         return waitFor("deployment", name, actualObj -> {
             JsonNode replicasNode = actualObj.get("status").get("replicas");
             JsonNode readyReplicasName = actualObj.get("status").get("readyReplicas");
             return replicasNode != null && readyReplicasName != null
-                    && replicasNode.asInt() == readyReplicasName.asInt();
+                    && replicasNode.asInt() == readyReplicasName.asInt() && replicasNode.asInt() == expected;
 
+        });
+    }
+
+    @Override
+    public K waitForDeploymentConfig(String name) {
+        return waitFor("deploymentConfig", name, actualObj -> {
+            JsonNode replicasNode = actualObj.get("status").get("replicas");
+            JsonNode readyReplicasName = actualObj.get("status").get("readyReplicas");
+            return replicasNode != null && readyReplicasName != null
+                    && replicasNode.asInt() == readyReplicasName.asInt();
         });
     }
 
@@ -308,6 +324,7 @@ public abstract class BaseKubeClient<K extends BaseKubeClient<K>> implements Kub
         return (K) this;
     }
 
+    @Override
     public K waitForResourceUpdate(String resourceType, String resourceName, Date startTime) {
 
         TestUtils.waitFor(resourceType + " " + resourceName + " update",
@@ -321,6 +338,7 @@ public abstract class BaseKubeClient<K extends BaseKubeClient<K>> implements Kub
         return (K) this;
     }
 
+    @Override
     public Date getResourceCreateTimestamp(String resourceType, String resourceName) {
         DateFormat df = new SimpleDateFormat("yyyyMMdd'T'kkmmss'Z'");
         Date parsedDate = null;
@@ -359,8 +377,14 @@ public abstract class BaseKubeClient<K extends BaseKubeClient<K>> implements Kub
     }
 
     @Override
-    public String logs(String pod) {
-        return Exec.exec(namespacedCommand("logs", pod)).out();
+    public String logs(String pod, String container) {
+        String[] args;
+        if (container != null) {
+            args = new String[]{"logs", pod, "-c", container};
+        } else {
+            args = new String[]{"logs", pod};
+        }
+        return Exec.exec(namespacedCommand(args)).out();
     }
 
     @Override

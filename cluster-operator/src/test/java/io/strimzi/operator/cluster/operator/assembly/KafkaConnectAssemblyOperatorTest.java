@@ -115,7 +115,7 @@ public class KafkaConnectAssemblyOperatorTest {
             List<Service> capturedServices = serviceCaptor.getAllValues();
             context.assertEquals(1, capturedServices.size());
             Service service = capturedServices.get(0);
-            context.assertEquals(connect.getName(), service.getMetadata().getName());
+            context.assertEquals(connect.getServiceName(), service.getMetadata().getName());
             context.assertEquals(connect.generateService(), service, "Services are not equal");
 
             // Verify Deployment
@@ -258,7 +258,7 @@ public class KafkaConnectAssemblyOperatorTest {
             List<Service> capturedServices = serviceCaptor.getAllValues();
             context.assertEquals(1, capturedServices.size());
             Service service = capturedServices.get(0);
-            context.assertEquals(compareTo.getName(), service.getMetadata().getName());
+            context.assertEquals(compareTo.getServiceName(), service.getMetadata().getName());
             context.assertEquals(compareTo.generateService(), service, "Services are not equal");
 
             // Verify Deployment
@@ -468,7 +468,7 @@ public class KafkaConnectAssemblyOperatorTest {
             // Vertify service
             context.assertEquals(1, serviceNameCaptor.getAllValues().size());
             context.assertEquals(clusterCmNamespace, serviceNamespaceCaptor.getValue());
-            context.assertEquals(connect.getName(), serviceNameCaptor.getValue());
+            context.assertEquals(connect.getServiceName(), serviceNameCaptor.getValue());
 
             // Vertify Deployment
             context.assertEquals(1, dcNameCaptor.getAllValues().size());
@@ -499,7 +499,7 @@ public class KafkaConnectAssemblyOperatorTest {
         when(mockConnectOps.get(eq(clusterCmNamespace), eq("bar"))).thenReturn(bar);
 
         // providing the list of ALL Deployments for all the Kafka Connect clusters
-        Labels newLabels = Labels.forType(AssemblyType.CONNECT);
+        Labels newLabels = Labels.forKind(KafkaConnectAssembly.RESOURCE_KIND);
         when(mockDcOps.list(eq(clusterCmNamespace), eq(newLabels))).thenReturn(
                 asList(KafkaConnectCluster.fromCrd(bar).generateDeployment(),
                         KafkaConnectCluster.fromCrd(baz).generateDeployment()));
@@ -527,8 +527,8 @@ public class KafkaConnectAssemblyOperatorTest {
                 mockCmOps, mockDcOps, mockServiceOps, mockSecretOps) {
 
             @Override
-            public void createOrUpdate(Reconciliation reconciliation, KafkaConnectAssembly assemblyCm, List<Secret> assemblySecrets, Handler<AsyncResult<Void>> h) {
-                createdOrUpdated.add(assemblyCm.getMetadata().getName());
+            public void createOrUpdate(Reconciliation reconciliation, KafkaConnectAssembly kafkaConnectAssembly, List<Secret> assemblySecrets, Handler<AsyncResult<Void>> h) {
+                createdOrUpdated.add(kafkaConnectAssembly.getMetadata().getName());
                 async.countDown();
                 h.handle(Future.succeededFuture());
             }
@@ -541,7 +541,7 @@ public class KafkaConnectAssemblyOperatorTest {
         };
 
         // Now try to reconcile all the Kafka Connect clusters
-        ops.reconcileAll("test", clusterCmNamespace, Labels.EMPTY);
+        ops.reconcileAll("test", clusterCmNamespace);
 
         async.await();
 

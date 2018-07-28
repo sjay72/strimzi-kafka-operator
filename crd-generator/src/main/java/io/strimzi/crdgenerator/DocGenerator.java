@@ -4,6 +4,7 @@
  */
 package io.strimzi.crdgenerator;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.fabric8.kubernetes.client.CustomResource;
 import io.strimzi.crdgenerator.annotations.Crd;
 import io.strimzi.crdgenerator.annotations.Description;
@@ -46,6 +47,7 @@ public class DocGenerator {
     private Set<Class<?>> documentedTypes = new HashSet<>();
     private HashMap<Class<?>, Set<Class<?>>> usedIn;
     private Linker linker;
+    private int numErrors = 0;
 
     public DocGenerator(int headerDepth, Iterable<Class<? extends CustomResource>> crdClasses, Appendable out, Linker linker) {
         this.out = out;
@@ -55,14 +57,6 @@ public class DocGenerator {
         for (Class<? extends CustomResource> crdClass: crdClasses) {
             usedIn(crdClass, usedIn);
         }
-    }
-
-    private void appendAnchor(Crd crd) throws IOException {
-        out.append("[[").append(anchor(crd)).append("]]").append(NL);
-    }
-
-    private String anchor(Crd crd) {
-        return "kind-" + crd.spec().names().kind();
     }
 
     private void appendAnchor(Crd crd, Class<?> anchor) throws IOException {
@@ -113,7 +107,6 @@ public class DocGenerator {
 
     public void generate(Class<? extends CustomResource> crdClass) throws IOException {
         Crd crd = crdClass.getAnnotation(Crd.class);
-        appendAnchor(crd);
         appendAnchor(crd, crdClass);
         appendHeading(crd, "`" + crd.spec().names().kind() + "` kind");
         appendCommonTypeDoc(crd, crdClass);
@@ -154,7 +147,11 @@ public class DocGenerator {
             out.append("|");
 
             Description description2 = property.getAnnotation(Description.class);
-            if (description2 != null) {
+            if (description2 == null) {
+                if (cls.getName().startsWith("io.strimzi")) {
+                    err(property + " is not documented");
+                }
+            } else {
                 out.append(description2.value());
             }
             KubeLink kubeLink = property.getAnnotation(KubeLink.class);
@@ -175,12 +172,17 @@ public class DocGenerator {
                 types.add(documentedType);
             }
 
-            // TODO Deprecated, Minimum?, Pattern?
+            // TODO Deprecated, Minimum?, Maximum?, Pattern?
             appendPropertyType(crd, propertyType, externalUrl);
         }
         out.append("|====").append(NL).append(NL);
 
         appendNestedTypes(crd, types);
+    }
+
+    private void err(String s) {
+        System.err.println(DocGenerator.class.getSimpleName() + ": error: " + s);
+        numErrors++;
     }
 
     private void appendNestedTypes(Crd crd, LinkedHashSet<Class<?>> types) throws IOException {
@@ -208,6 +210,17 @@ public class DocGenerator {
         // Now the type link
         if (externalUrl != null) {
             out.append(externalUrl).append("[").append(propertyClass.getSimpleName()).append("]");
+        } else if (propertyType.isEnum()) {
+            Set<String> strings = new HashSet<>();
+            for (JsonNode n : Schema.enumCases(propertyType.getEnumElements())) {
+                if (n.isTextual()) {
+                    strings.add(n.asText());
+                } else {
+                    throw new RuntimeException("Enum case is not a string");
+                }
+            }
+            out.append("string (one of " + strings + ")");
+
         } else {
             typeLink(crd, out, propertyClass);
         }
@@ -294,9 +307,6 @@ public class DocGenerator {
                     throw new RuntimeException(e);
                 }
             }).collect(Collectors.joining(", ")));
-        } else if (cls.isAnnotationPresent(Crd.class)) {
-            // <<KafkaType,`KafkaType`>>
-            out.append("<<").append(anchor(crd)).append(",`").append(cls.getSimpleName()).append("`>>");
         } else {
             out.append("<<").append(anchor(cls)).append(",`").append(cls.getSimpleName()).append("`>>");
         }
@@ -349,6 +359,10 @@ public class DocGenerator {
             DocGenerator dg = new DocGenerator(3, classes, writer, linker);
             for (Class<? extends CustomResource> c : classes) {
                 dg.generate(c);
+            }
+            if (dg.numErrors > 0) {
+                System.err.println("There were " + dg.numErrors + " errors");
+                System.exit(1);
             }
         }
     }

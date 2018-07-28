@@ -5,8 +5,11 @@
 package io.strimzi.api.kafka.model;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.fabric8.kubernetes.api.model.KubernetesResource;
 import io.fabric8.kubernetes.api.model.apiextensions.CustomResourceDefinitionSpec;
@@ -140,7 +143,7 @@ public class ExamplesTest {
                 && !method.getReturnType().equals(void.class);
     }
 
-    private void validateTemplate(JsonNode rootNode) {
+    private void validateTemplate(JsonNode rootNode) throws JsonProcessingException {
         JsonNode parameters = rootNode.get("parameters");
         Map<String, Object> params = new HashMap<>();
         for (JsonNode parameter : parameters) {
@@ -164,14 +167,15 @@ public class ExamplesTest {
             params.put(name, value);
         }
         for (JsonNode object : rootNode.get("objects")) {
-            String s = object.toString();
-            Pattern p = Pattern.compile("\\$\\{(.+?)\\}");
+            String s = new YAMLMapper().enable(YAMLGenerator.Feature.MINIMIZE_QUOTES).enable(SerializationFeature.INDENT_OUTPUT).writeValueAsString(object);
+            Pattern p = Pattern.compile("\\$\\{\\{(.+?)\\}?\\}");
             Matcher matcher = p.matcher(s);
             StringBuilder sb = new StringBuilder();
             int last = 0;
             while (matcher.find()) {
                 sb.append(s, last, matcher.start());
-                sb.append(params.get(matcher.group(1)));
+                String paramName = matcher.group(1);
+                sb.append(params.get(paramName));
                 last = matcher.end();
             }
             sb.append(s.substring(last));

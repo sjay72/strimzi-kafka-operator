@@ -61,7 +61,7 @@ public class KafkaConnectAssemblyOperator extends AbstractAssemblyOperator<Kuber
                                         ConfigMapOperator configMapOperations,
                                         DeploymentOperator deploymentOperations,
                                         ServiceOperator serviceOperations,
-        SecretOperator secretOperations) {
+                                        SecretOperator secretOperations) {
         super(vertx, isOpenShift, AssemblyType.CONNECT, certManager, connectOperator, secretOperations);
         this.configMapOperations = configMapOperations;
         this.serviceOperations = serviceOperations;
@@ -69,13 +69,13 @@ public class KafkaConnectAssemblyOperator extends AbstractAssemblyOperator<Kuber
     }
 
     @Override
-    protected void createOrUpdate(Reconciliation reconciliation, KafkaConnectAssembly assemblyCm, List<Secret> assemblySecrets, Handler<AsyncResult<Void>> handler) {
+    protected void createOrUpdate(Reconciliation reconciliation, KafkaConnectAssembly kafkaConnectAssembly, List<Secret> assemblySecrets, Handler<AsyncResult<Void>> handler) {
 
         String namespace = reconciliation.namespace();
         String name = reconciliation.assemblyName();
         KafkaConnectCluster connect;
         try {
-            connect = KafkaConnectCluster.fromCrd(assemblyCm);
+            connect = KafkaConnectCluster.fromCrd(kafkaConnectAssembly);
         } catch (Exception e) {
             handler.handle(Future.failedFuture(e));
             return;
@@ -86,7 +86,7 @@ public class KafkaConnectAssemblyOperator extends AbstractAssemblyOperator<Kuber
         log.debug("{}: Updating Kafka Connect cluster", reconciliation, name, namespace);
         Future<Void> chainFuture = Future.future();
         deploymentOperations.scaleDown(namespace, connect.getName(), connect.getReplicas())
-                .compose(scale -> serviceOperations.reconcile(namespace, connect.getName(), connect.generateService()))
+                .compose(scale -> serviceOperations.reconcile(namespace, connect.getServiceName(), connect.generateService()))
                 .compose(i -> configMapOperations.reconcile(namespace, connect.getAncillaryConfigName(), logAndMetricsConfigMap))
                 .compose(i -> deploymentOperations.reconcile(namespace, connect.getName(), connect.generateDeployment()))
                 .compose(i -> deploymentOperations.scaleUp(namespace, connect.getName(), connect.getReplicas()).map((Void) null))
@@ -100,16 +100,15 @@ public class KafkaConnectAssemblyOperator extends AbstractAssemblyOperator<Kuber
         String assemblyName = reconciliation.assemblyName();
         String clusterName = KafkaConnectCluster.kafkaConnectClusterName(assemblyName);
 
-        CompositeFuture.join(serviceOperations.reconcile(namespace, clusterName, null),
+        CompositeFuture.join(serviceOperations.reconcile(namespace, KafkaConnectCluster.serviceName(assemblyName), null),
             configMapOperations.reconcile(namespace, KafkaConnectCluster.logAndMetricsConfigName(assemblyName), null),
             deploymentOperations.reconcile(namespace, clusterName, null))
             .map((Void) null).setHandler(handler);
     }
 
     @Override
-    protected List<HasMetadata> getResources(String namespace) {
+    protected List<HasMetadata> getResources(String namespace, Labels selector) {
         List<HasMetadata> result = new ArrayList<>();
-        Labels selector = Labels.forType(AssemblyType.CONNECT);
         result.addAll(serviceOperations.list(namespace, selector));
         result.addAll(deploymentOperations.list(namespace, selector));
         result.addAll(resourceOperator.list(namespace, selector));

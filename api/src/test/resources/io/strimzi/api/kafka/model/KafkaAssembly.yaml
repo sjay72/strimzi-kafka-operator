@@ -7,10 +7,19 @@ spec:
   kafka:
     replicas: 3
     image: "strimzi/kafka:latest"
-    brokerRackInitImage: "strimzi/init-kafka:latest"
+    brokerRackInitImage: "strimzi/kafka-init:latest"
     resources:
       limits:
         memory: "5Gi"
+    tolerations:
+      - key: "key1"
+        operator: "Equal"
+        value: "value1"
+        effect: "NoSchedule"
+      - key: "key2"
+        operator: "Equal"
+        value: "value2"
+        effect: "NoSchedule"
     livenessProbe:
       initialDelaySeconds: 5
       timeoutSeconds: 1
@@ -50,6 +59,15 @@ spec:
     resources:
       limits:
         memory: "512Mi"
+    tolerations:
+      - key: "key1"
+        operator: "Equal"
+        value: "value1"
+        effect: "NoSchedule"
+      - key: "key2"
+        operator: "Equal"
+        value: "value2"
+        effect: "NoSchedule"
     livenessProbe:
       initialDelaySeconds: 5
       timeoutSeconds: 1

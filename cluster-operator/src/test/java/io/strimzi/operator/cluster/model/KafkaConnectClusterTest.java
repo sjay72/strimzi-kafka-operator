@@ -10,9 +10,12 @@ import io.fabric8.kubernetes.api.model.EnvVarBuilder;
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.extensions.Deployment;
 import io.strimzi.api.kafka.model.KafkaConnectAssembly;
+import io.strimzi.api.kafka.model.KafkaConnectAssemblyBuilder;
+import io.strimzi.api.kafka.model.Probe;
 import io.strimzi.certs.CertManager;
 import io.strimzi.operator.cluster.ResourceUtils;
 import io.strimzi.operator.cluster.operator.assembly.MockCertManager;
+import io.strimzi.test.TestUtils;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -21,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static io.strimzi.test.TestUtils.LINE_SEPARATOR;
 import static org.junit.Assert.assertEquals;
 
 public class KafkaConnectClusterTest {
@@ -32,31 +36,39 @@ public class KafkaConnectClusterTest {
     private final int healthTimeout = 10;
     private final String metricsCmJson = "{\"animal\":\"wombat\"}";
     private final String configurationJson = "{\"foo\":\"bar\"}";
-    private final String expectedConfiguration = "group.id=connect-cluster\n" +
-            "key.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "internal.key.converter.schemas.enable=false\n" +
-            "value.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "config.storage.topic=connect-cluster-configs\n" +
-            "status.storage.topic=connect-cluster-status\n" +
-            "offset.storage.topic=connect-cluster-offsets\n" +
-            "foo=bar\n" +
-            "internal.key.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "internal.value.converter.schemas.enable=false\n" +
-            "internal.value.converter=org.apache.kafka.connect.json.JsonConverter\n";
-    private final String defaultConfiguration = "group.id=connect-cluster\n" +
-            "key.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "internal.key.converter.schemas.enable=false\n" +
-            "value.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "config.storage.topic=connect-cluster-configs\n" +
-            "status.storage.topic=connect-cluster-status\n" +
-            "offset.storage.topic=connect-cluster-offsets\n" +
-            "internal.key.converter=org.apache.kafka.connect.json.JsonConverter\n" +
-            "internal.value.converter.schemas.enable=false\n" +
-            "internal.value.converter=org.apache.kafka.connect.json.JsonConverter\n";
+    private final String expectedConfiguration = "group.id=connect-cluster" + LINE_SEPARATOR +
+            "key.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "internal.key.converter.schemas.enable=false" + LINE_SEPARATOR +
+            "value.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "config.storage.topic=connect-cluster-configs" + LINE_SEPARATOR +
+            "status.storage.topic=connect-cluster-status" + LINE_SEPARATOR +
+            "offset.storage.topic=connect-cluster-offsets" + LINE_SEPARATOR +
+            "foo=bar" + LINE_SEPARATOR +
+            "internal.key.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "internal.value.converter.schemas.enable=false" + LINE_SEPARATOR +
+            "internal.value.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR;
+    private final String defaultConfiguration = "group.id=connect-cluster" + LINE_SEPARATOR +
+            "key.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "internal.key.converter.schemas.enable=false" + LINE_SEPARATOR +
+            "value.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "config.storage.topic=connect-cluster-configs" + LINE_SEPARATOR +
+            "status.storage.topic=connect-cluster-status" + LINE_SEPARATOR +
+            "offset.storage.topic=connect-cluster-offsets" + LINE_SEPARATOR +
+            "internal.key.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR +
+            "internal.value.converter.schemas.enable=false" + LINE_SEPARATOR +
+            "internal.value.converter=org.apache.kafka.connect.json.JsonConverter" + LINE_SEPARATOR;
 
     private CertManager certManager = new MockCertManager();
-    private final KafkaConnectAssembly resource = ResourceUtils.createKafkaConnectCluster(namespace, cluster, replicas, image,
-            healthDelay, healthTimeout, metricsCmJson, configurationJson);
+    private final KafkaConnectAssembly resource = new KafkaConnectAssemblyBuilder(ResourceUtils.createEmptyKafkaConnectCluster(namespace, cluster))
+            .withNewSpec()
+            .withMetrics((Map<String, Object>) TestUtils.fromJson(metricsCmJson, Map.class))
+            .withConfig((Map<String, Object>) TestUtils.fromJson(configurationJson, Map.class))
+            .withImage(image)
+            .withReplicas(replicas)
+            .withReadinessProbe(new Probe(healthDelay, healthTimeout))
+            .withLivenessProbe(new Probe(healthDelay, healthTimeout))
+            .endSpec()
+            .build();
     private final KafkaConnectCluster kc = KafkaConnectCluster.fromCrd(resource);
 
     @Rule
@@ -70,6 +82,14 @@ public class KafkaConnectClusterTest {
 
     private void checkMetricsConfigMap(ConfigMap metricsCm) {
         assertEquals(metricsCmJson, metricsCm.getData().get(AbstractModel.ANCILLARY_CM_KEY_METRICS));
+    }
+
+    private Map<String, String> expectedLabels(String name)    {
+        return TestUtils.map(Labels.STRIMZI_CLUSTER_LABEL, this.cluster, Labels.STRIMZI_TYPE_LABEL, "kafka-connect", "my-user-label", "cromulent", Labels.STRIMZI_NAME_LABEL, name, Labels.STRIMZI_KIND_LABEL, KafkaConnectAssembly.RESOURCE_KIND);
+    }
+
+    private Map<String, String> expectedLabels()    {
+        return expectedLabels(kc.kafkaConnectClusterName(cluster));
     }
 
     protected List<EnvVar> getExpectedEnvVars() {
@@ -115,16 +135,13 @@ public class KafkaConnectClusterTest {
         Service svc = kc.generateService();
 
         assertEquals("ClusterIP", svc.getSpec().getType());
-        Map<String, String> expectedLabels = ResourceUtils.labels(Labels.STRIMZI_CLUSTER_LABEL, this.cluster,
-                Labels.STRIMZI_TYPE_LABEL, "kafka-connect",
-                "my-user-label", "cromulent",
-                Labels.STRIMZI_NAME_LABEL, kc.kafkaConnectClusterName(cluster));
-        assertEquals(expectedLabels, svc.getMetadata().getLabels());
-        assertEquals(expectedLabels, svc.getSpec().getSelector());
+        assertEquals(expectedLabels(kc.getServiceName()), svc.getMetadata().getLabels());
+        assertEquals(expectedLabels(), svc.getSpec().getSelector());
         assertEquals(2, svc.getSpec().getPorts().size());
         assertEquals(new Integer(KafkaConnectCluster.REST_API_PORT), svc.getSpec().getPorts().get(0).getPort());
         assertEquals(KafkaConnectCluster.REST_API_PORT_NAME, svc.getSpec().getPorts().get(0).getName());
         assertEquals("TCP", svc.getSpec().getPorts().get(0).getProtocol());
+        assertEquals(kc.getPrometheusAnnotations(), svc.getMetadata().getAnnotations());
     }
 
     @Test
@@ -133,10 +150,7 @@ public class KafkaConnectClusterTest {
 
         assertEquals(kc.kafkaConnectClusterName(cluster), dep.getMetadata().getName());
         assertEquals(namespace, dep.getMetadata().getNamespace());
-        Map<String, String> expectedLabels = ResourceUtils.labels(Labels.STRIMZI_CLUSTER_LABEL, this.cluster,
-                Labels.STRIMZI_TYPE_LABEL, "kafka-connect",
-                "my-user-label", "cromulent",
-                Labels.STRIMZI_NAME_LABEL, kc.kafkaConnectClusterName(cluster));
+        Map<String, String> expectedLabels = expectedLabels();
         assertEquals(expectedLabels, dep.getMetadata().getLabels());
         assertEquals(new Integer(replicas), dep.getSpec().getReplicas());
         assertEquals(expectedLabels, dep.getSpec().getTemplate().getMetadata().getLabels());
@@ -160,6 +174,12 @@ public class KafkaConnectClusterTest {
     @Test
     public void withAffinity() throws IOException {
         resourceTester
-                .assertDesiredResource("-Deployment.yaml", kcc -> kcc.generateDeployment().getSpec().getTemplate().getSpec().getAffinity());
+            .assertDesiredResource("-Deployment.yaml", kcc -> kcc.generateDeployment().getSpec().getTemplate().getSpec().getAffinity());
+    }
+
+    @Test
+    public void withTolerations() throws IOException {
+        resourceTester
+            .assertDesiredResource("-Deployment.yaml", kcc -> kcc.generateDeployment().getSpec().getTemplate().getSpec().getTolerations());
     }
 }

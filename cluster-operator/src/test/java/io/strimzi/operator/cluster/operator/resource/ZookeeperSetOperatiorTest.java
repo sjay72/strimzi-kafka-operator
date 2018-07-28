@@ -25,9 +25,9 @@ import static org.junit.Assert.assertTrue;
 
 public class ZookeeperSetOperatiorTest {
 
-    public static final String METRICS_CONFIG = "{\"foo\":\"bar\"}";
-    public static final String LOG_ZOOKEEPER_CONFIG = "{\"zookeeper.root.logger\":\"INFO\"}";
-    public static final String LOG_KAFKA_CONFIG = "{\"kafka.root.logger.level\":\"INFO\"}";
+    //public static final Map<String, Object> METRICS_CONFIG = singletonMap("foo", "bar");
+    //public static final Map<String, Object> LOG_ZOOKEEPER_CONFIG = singletonMap("zookeeper.root.logger", "INFO");
+    //public static final Map<String, Object> LOG_KAFKA_CONFIG = singletonMap("kafka.root.logger.level", "INFO");
 
     private StatefulSet a;
     private StatefulSet b;
@@ -35,8 +35,8 @@ public class ZookeeperSetOperatiorTest {
     @Before
     public void before() {
         MockCertManager certManager = new MockCertManager();
-        a = ZookeeperCluster.fromCrd(certManager, getResource(), getInitialSecrets()).generateStatefulSet(true);
-        b = ZookeeperCluster.fromCrd(certManager, getResource(), getInitialSecrets()).generateStatefulSet(true);
+        a = ZookeeperCluster.fromCrd(certManager, getResource(), getInitialSecrets(getResource().getMetadata().getName())).generateStatefulSet(true);
+        b = ZookeeperCluster.fromCrd(certManager, getResource(), getInitialSecrets(getResource().getMetadata().getName())).generateStatefulSet(true);
     }
 
     private KafkaAssembly getResource() {
@@ -46,12 +46,12 @@ public class ZookeeperSetOperatiorTest {
         String image = "bar";
         int healthDelay = 120;
         int healthTimeout = 30;
-        return ResourceUtils.createKafkaCluster(clusterCmNamespace, clusterCmName, replicas, image, healthDelay, healthTimeout, METRICS_CONFIG, LOG_KAFKA_CONFIG, LOG_ZOOKEEPER_CONFIG);
+        return ResourceUtils.createKafkaCluster(clusterCmNamespace, clusterCmName, replicas, image, healthDelay, healthTimeout);
     }
 
-    private List<Secret> getInitialSecrets() {
+    private List<Secret> getInitialSecrets(String clusterName) {
         String clusterCmNamespace = "test";
-        return ResourceUtils.createKafkaClusterInitialSecrets(clusterCmNamespace);
+        return ResourceUtils.createKafkaClusterInitialSecrets(clusterCmNamespace, clusterName);
     }
 
     private StatefulSetDiff diff() {
@@ -79,8 +79,17 @@ public class ZookeeperSetOperatiorTest {
 
     @Test
     public void testNeedsRollingUpdateImage() {
-        a.getSpec().getTemplate().getSpec().getContainers().get(0).setImage(
-                a.getSpec().getTemplate().getSpec().getContainers().get(0).getImage() + "-foo");
+        needsRollingUpdateImage(0);
+    }
+
+    @Test
+    public void testNeedsRollingUpdateStunnelImage() {
+        needsRollingUpdateImage(1);
+    }
+
+    private void needsRollingUpdateImage(int container) {
+        a.getSpec().getTemplate().getSpec().getContainers().get(container).setImage(
+                a.getSpec().getTemplate().getSpec().getContainers().get(container).getImage() + "-foo");
         assertTrue(ZookeeperSetOperator.needsRollingUpdate(diff()));
     }
 

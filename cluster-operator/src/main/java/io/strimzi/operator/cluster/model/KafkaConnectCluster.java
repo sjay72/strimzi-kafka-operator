@@ -4,7 +4,6 @@
  */
 package io.strimzi.operator.cluster.model;
 
-import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
 import io.fabric8.kubernetes.api.model.ContainerPort;
@@ -20,15 +19,11 @@ import io.fabric8.kubernetes.api.model.extensions.DeploymentStrategyBuilder;
 import io.fabric8.kubernetes.api.model.extensions.RollingUpdateDeploymentBuilder;
 import io.strimzi.api.kafka.model.KafkaConnectAssembly;
 import io.strimzi.api.kafka.model.KafkaConnectAssemblySpec;
-import io.vertx.core.json.JsonObject;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 import static java.util.Collections.emptySet;
 
@@ -41,6 +36,8 @@ public class KafkaConnectCluster extends AbstractModel {
     protected static final String METRICS_PORT_NAME = "metrics";
 
     private static final String NAME_SUFFIX = "-connect";
+    private static final String SERVICE_NAME_SUFFIX = NAME_SUFFIX + "-api";
+
     private static final String METRICS_AND_LOG_CONFIG_SUFFIX = NAME_SUFFIX + "-config";
 
     // Configuration defaults
@@ -50,18 +47,6 @@ public class KafkaConnectCluster extends AbstractModel {
     protected static final int DEFAULT_HEALTHCHECK_DELAY = 60;
     protected static final int DEFAULT_HEALTHCHECK_TIMEOUT = 5;
     protected static final boolean DEFAULT_KAFKA_CONNECT_METRICS_ENABLED = false;
-
-    // Configuration keys (in ConfigMap)
-    public static final String KEY_IMAGE = "image";
-    public static final String KEY_REPLICAS = "nodes";
-    public static final String KEY_HEALTHCHECK_DELAY = "healthcheck-delay";
-    public static final String KEY_HEALTHCHECK_TIMEOUT = "healthcheck-timeout";
-    public static final String KEY_METRICS_CONFIG = "metrics-config";
-    public static final String KEY_JVM_OPTIONS = "jvmOptions";
-    public static final String KEY_RESOURCES = "resources";
-    public static final String KEY_CONNECT_CONFIG = "connect-config";
-    public static final String KEY_AFFINITY = "affinity";
-    public static final String KEY_CONNECT_LOG_CONFIG = "logging";
 
     // Kafka Connect configuration keys (EnvVariables)
     protected static final String ENV_VAR_KAFKA_CONNECT_CONFIGURATION = "KAFKA_CONNECT_CONFIGURATION";
@@ -77,6 +62,7 @@ public class KafkaConnectCluster extends AbstractModel {
     protected KafkaConnectCluster(String namespace, String cluster, Labels labels) {
         super(namespace, cluster, labels);
         this.name = kafkaConnectClusterName(cluster);
+        this.serviceName = serviceName(cluster);
         this.validLoggerFields = getDefaultLogConfig();
         this.ancillaryConfigName = logAndMetricsConfigName(cluster);
         this.image = DEFAULT_IMAGE;
@@ -98,15 +84,19 @@ public class KafkaConnectCluster extends AbstractModel {
         return cluster + KafkaConnectCluster.NAME_SUFFIX;
     }
 
+    public static String serviceName(String cluster) {
+        return cluster + KafkaConnectCluster.SERVICE_NAME_SUFFIX;
+    }
+
     public static String logAndMetricsConfigName(String cluster) {
         return cluster + KafkaConnectCluster.METRICS_AND_LOG_CONFIG_SUFFIX;
     }
 
-    public static KafkaConnectCluster fromCrd(KafkaConnectAssembly crd) {
-        return fromSpec(crd.getSpec(),
-                new KafkaConnectCluster(crd.getMetadata().getNamespace(),
-                    crd.getMetadata().getName(),
-                    Labels.fromResource(crd)));
+    public static KafkaConnectCluster fromCrd(KafkaConnectAssembly kafkaConnectAssembly) {
+        return fromSpec(kafkaConnectAssembly.getSpec(),
+                new KafkaConnectCluster(kafkaConnectAssembly.getMetadata().getNamespace(),
+                    kafkaConnectAssembly.getMetadata().getName(),
+                    Labels.fromResource(kafkaConnectAssembly).withKind(kafkaConnectAssembly.getKind())));
     }
 
     /**
@@ -140,6 +130,7 @@ public class KafkaConnectCluster extends AbstractModel {
                 kafkaConnect.setMetricsConfig(metrics.entrySet());
             }
             kafkaConnect.setUserAffinity(spec.getAffinity());
+            kafkaConnect.setTolerations(spec.getTolerations());
         }
         return kafkaConnect;
     }
@@ -151,24 +142,7 @@ public class KafkaConnectCluster extends AbstractModel {
             ports.add(createServicePort(METRICS_PORT_NAME, METRICS_PORT, METRICS_PORT, "TCP"));
         }
 
-        return createService("ClusterIP", ports);
-    }
-
-    public ConfigMap generateMetricsAndLogConfigMap(ConfigMap cm) {
-        Map<String, String> data  = new HashMap<>();
-        data.put(ANCILLARY_CM_KEY_LOG_CONFIG, parseLogging(getLogging(), cm));
-        if (isMetricsEnabled()) {
-            HashMap m = new HashMap();
-            for (Map.Entry<String, Object> entry : getMetricsConfig()) {
-                m.put(entry.getKey(), entry.getValue());
-            }
-            data.put(ANCILLARY_CM_KEY_METRICS, new JsonObject(m).toString());
-        }
-        ConfigMap result = createConfigMap(getAncillaryConfigName(), data);
-        if (getLogging() != null) {
-            getLogging().setCm(result);
-        }
-        return result;
+        return createService("ClusterIP", ports, getPrometheusAnnotations());
     }
 
     protected List<ContainerPort> getContainerPortList() {
@@ -228,7 +202,7 @@ public class KafkaConnectCluster extends AbstractModel {
                 .withLivenessProbe(createHttpProbe(livenessPath, REST_API_PORT_NAME, livenessInitialDelay, livenessTimeout))
                 .withReadinessProbe(createHttpProbe(readinessPath, REST_API_PORT_NAME, readinessInitialDelay, readinessTimeout))
                 .withVolumeMounts(getVolumeMounts())
-                .withResources(resources())
+                .withResources(resources(getResources()))
                 .build();
 
         containers.add(container);
@@ -250,13 +224,7 @@ public class KafkaConnectCluster extends AbstractModel {
     }
 
     @Override
-    protected Properties getDefaultLogConfig() {
-        Properties properties = new Properties();
-        try {
-            properties = getDefaultLoggingProperties("kafkaConnectDefaultLoggingProperties");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return properties;
+    protected String getDefaultLogConfigFileName() {
+        return "kafkaConnectDefaultLoggingProperties";
     }
 }

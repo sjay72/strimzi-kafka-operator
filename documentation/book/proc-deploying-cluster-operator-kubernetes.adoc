@@ -1,0 +1,31 @@
+// Module included in the following assemblies:
+//
+// assembly-cluster-operator.adoc
+
+[id='deploying-cluster-operator-kubernetes-{context}']
+= Deploying the Cluster Operator to {KubernetesName}
+
+.Prerequisites
+
+* Modify the installation files according to the namespace the Cluster Operator is going to be installed in.
++
+[source, subs="+quotes"]
+----
+sed -i 's/namespace: .\*/namespace: _<my-namespace>_/' examples/install/cluster-operator/*ClusterRoleBinding*.yaml
+----
+
+.Procedure
+
+. Deploy the Cluster Operator
++
+[source]
+----
+kubectl create -f examples/install/cluster-operator
+----
+
+. Verify whether the Cluster Operator has been deployed successfully, the {KubernetesName} Dashboard or the command line:
++
+[source]
+----
+kubectl describe all
+----

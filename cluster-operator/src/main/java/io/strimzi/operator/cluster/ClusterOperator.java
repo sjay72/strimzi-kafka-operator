@@ -7,7 +7,6 @@ package io.strimzi.operator.cluster;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import io.fabric8.kubernetes.client.Watch;
-import io.strimzi.operator.cluster.model.Labels;
 import io.strimzi.operator.cluster.operator.assembly.AbstractAssemblyOperator;
 import io.strimzi.operator.cluster.operator.assembly.KafkaAssemblyOperator;
 import io.strimzi.operator.cluster.operator.assembly.KafkaConnectAssemblyOperator;
@@ -33,12 +32,10 @@ public class ClusterOperator extends AbstractVerticle {
     private static final Logger log = LogManager.getLogger(ClusterOperator.class.getName());
 
     public static final String STRIMZI_CLUSTER_OPERATOR_DOMAIN = "cluster.operator.strimzi.io";
-    public static final String STRIMZI_CLUSTER_OPERATOR_SERVICE_ACCOUNT = "strimzi-cluster-operator";
 
     private static final int HEALTH_SERVER_PORT = 8080;
 
     private final KubernetesClient client;
-    private final Labels selector;
     private final String namespace;
     private final long reconciliationInterval;
 
@@ -57,7 +54,6 @@ public class ClusterOperator extends AbstractVerticle {
                            KafkaConnectS2IAssemblyOperator kafkaConnectS2IAssemblyOperator) {
         log.info("Creating ClusterOperator for namespace {}", namespace);
         this.namespace = namespace;
-        this.selector = Labels.EMPTY;
         this.reconciliationInterval = reconciliationInterval;
         this.client = client;
         this.kafkaAssemblyOperator = kafkaAssemblyOperator;
@@ -137,11 +133,11 @@ public class ClusterOperator extends AbstractVerticle {
       Periodical reconciliation (in case we lost some event)
      */
     private void reconcileAll(String trigger) {
-        kafkaAssemblyOperator.reconcileAll(trigger, namespace, selector);
-        kafkaConnectAssemblyOperator.reconcileAll(trigger, namespace, selector);
+        kafkaAssemblyOperator.reconcileAll(trigger, namespace);
+        kafkaConnectAssemblyOperator.reconcileAll(trigger, namespace);
 
         if (kafkaConnectS2IAssemblyOperator != null) {
-            kafkaConnectS2IAssemblyOperator.reconcileAll(trigger, namespace, selector);
+            kafkaConnectS2IAssemblyOperator.reconcileAll(trigger, namespace);
         }
     }
 

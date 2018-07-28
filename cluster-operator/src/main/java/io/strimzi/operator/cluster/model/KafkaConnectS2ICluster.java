@@ -39,9 +39,6 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
     // Configuration defaults
     protected static final String DEFAULT_IMAGE = System.getenv().getOrDefault("STRIMZI_DEFAULT_KAFKA_CONNECT_S2I_IMAGE", "strimzi/kafka-connect-s2i:latest");
 
-    // Configuration keys (in ConfigMap)
-    public static final String KEY_INSECURE_SOURCE_REPO = "insecure-source-repo";
-
     /**
      * Constructor
      *
@@ -54,11 +51,11 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
         this.validLoggerFields = getDefaultLogConfig();
     }
 
-    public static KafkaConnectS2ICluster fromCrd(KafkaConnectS2IAssembly crd) {
-        KafkaConnectS2IAssemblySpec spec = crd.getSpec();
-        KafkaConnectS2ICluster cluster = fromSpec(spec, new KafkaConnectS2ICluster(crd.getMetadata().getNamespace(),
-                crd.getMetadata().getName(),
-                Labels.fromResource(crd)));
+    public static KafkaConnectS2ICluster fromCrd(KafkaConnectS2IAssembly kafkaConnectS2IAssembly) {
+        KafkaConnectS2IAssemblySpec spec = kafkaConnectS2IAssembly.getSpec();
+        KafkaConnectS2ICluster cluster = fromSpec(spec, new KafkaConnectS2ICluster(kafkaConnectS2IAssembly.getMetadata().getNamespace(),
+                kafkaConnectS2IAssembly.getMetadata().getName(),
+                Labels.fromResource(kafkaConnectS2IAssembly).withKind(kafkaConnectS2IAssembly.getKind())));
         cluster.setInsecureSourceRepository(spec != null ? spec.isInsecureSourceRepository() : false);
         return cluster;
     }
@@ -77,7 +74,7 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
                 .withLivenessProbe(createHttpProbe(livenessPath, REST_API_PORT_NAME, livenessInitialDelay, livenessTimeout))
                 .withReadinessProbe(createHttpProbe(readinessPath, REST_API_PORT_NAME, readinessInitialDelay, readinessTimeout))
                 .withVolumeMounts(getVolumeMounts())
-                .withResources(resources())
+                .withResources(resources(getResources()))
                 .build();
 
         DeploymentTriggerPolicy configChangeTrigger = new DeploymentTriggerPolicyBuilder()
@@ -119,6 +116,8 @@ public class KafkaConnectS2ICluster extends KafkaConnectCluster {
                         .withNewSpec()
                             .withContainers(container)
                             .withVolumes(getVolumes())
+                            .withTolerations(getTolerations())
+                            .withAffinity(getMergedAffinity())
                         .endSpec()
                     .endTemplate()
                     .withTriggers(configChangeTrigger, imageChangeTrigger)

@@ -13,7 +13,6 @@ import io.strimzi.api.kafka.model.KafkaAssembly;
 import io.strimzi.api.kafka.model.KafkaConnectAssembly;
 import io.strimzi.test.k8s.BaseKubeClient;
 import io.strimzi.test.k8s.KubeClient;
-import io.strimzi.test.k8s.KubeClusterException;
 import io.strimzi.test.k8s.KubeClusterResource;
 import io.strimzi.test.k8s.Minishift;
 import io.strimzi.test.k8s.OpenShift;
@@ -70,9 +69,10 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
     public static final String NOTEARDOWN = "NOTEARDOWN";
     public static final String KAFKA_PERSISTENT_YAML = "../examples/kafka/kafka-persistent.yaml";
     public static final String KAFKA_CONNECT_YAML = "../examples/kafka-connect/kafka-connect.yaml";
+    public static final String KAFKA_CONNECT_S2I_CM = "../examples/configmaps/cluster-operator/kafka-connect-s2i.yaml";
     public static final String CO_INSTALL_DIR = "../examples/install/cluster-operator";
     public static final String CO_DEPLOYMENT_NAME = "strimzi-cluster-operator";
-    public static final String TOPIC_CM = "../examples/configmaps/topic-operator/kafka-topic-configmap.yaml";
+    public static final String TOPIC_CM = "../examples/topic/kafka-topic.yaml";
 
     private KubeClusterResource clusterResource;
 
@@ -118,8 +118,7 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
     }
 
     private static Collection<String> getEnabledGroups(String key) {
-        Collection<String> enabledGroups = splitProperties(System.getProperty(key));
-        return enabledGroups;
+        return splitProperties((String) System.getProperties().getOrDefault(key, JUnitGroup.ALL_GROUPS));
     }
 
     private static Collection<String> getDeclaredGroups(JUnitGroup testGroup) {
@@ -167,6 +166,7 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
             protected void after() {
             }
         };
+        statement = withConnectS2IClusters(method, statement);
         statement = withConnectClusters(method, statement);
         statement = withKafkaClusters(method, statement);
         statement = withClusterOperator(method, statement);
@@ -362,16 +362,18 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
     class DumpLogsErrorAction implements Consumer<Throwable> {
 
         private final Supplier<List<ResourceName>> podNameSupplier;
+        private final String container;
 
-        public DumpLogsErrorAction(Supplier<List<ResourceName>> podNameSupplier) {
+        public DumpLogsErrorAction(Supplier<List<ResourceName>> podNameSupplier, String container) {
             this.podNameSupplier = podNameSupplier;
+            this.container = container;
         }
 
         @Override
         public void accept(Throwable t) {
             for (ResourceName pod : podNameSupplier.get()) {
                 if (pod.kind.equals("pod") || pod.kind.equals("pods") || pod.kind.equals("po")) {
-                    LOGGER.info("Logs from pod {}:{}{}", pod.name, System.lineSeparator(), indent(kubeClient().logs(pod.name)));
+                    LOGGER.info("Logs from pod {}:{}{}", pod.name, System.lineSeparator(), indent(kubeClient().logs(pod.name, container)));
                 }
             }
         }
@@ -431,8 +433,8 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
             return getResources(new ResourceMatcher("statefulset", pattern));
         }
 
-        public ResourceAction logs(String pattern) {
-            list.add(new DumpLogsErrorAction(new ResourceMatcher("pod", pattern)));
+        public ResourceAction logs(String pattern, String container) {
+            list.add(new DumpLogsErrorAction(new ResourceMatcher("pod", pattern), container));
             return this;
         }
 
@@ -451,26 +453,43 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
         }
     }
 
-    private void logState(Throwable t) {
-        LOGGER.info("The test is failing/erroring due to {}, here's some diagnostic output{}{}",
-                t, System.lineSeparator(), "----------------------------------------------------------------------");
-        for (String pod : ccFirst(kubeClient().list("pod"))) {
-            LOGGER.info("Logs from pod {}:{}{}", pod, System.lineSeparator(), indent(kubeClient().logs(pod)));
-        }
-        asList("pod", "deployment", "statefulset", "kafka", "kafkaconnect", "kafkaconnects2i").stream().forEach(resourceType -> {
-            try {
-                for (String resourceName : kubeClient().list(resourceType)) {
-                    LOGGER.info("Description of {} '{}':{}{}", resourceType, resourceName,
-                            System.lineSeparator(), indent(kubeClient().getResourceAsYaml(resourceType, resourceName)));
-                }
-            } catch (KubeClusterException e) {
-                t.addSuppressed(e);
-            }
-        });
+    private Statement withConnectS2IClusters(Annotatable element,
+                                          Statement statement) {
+        Statement last = statement;
+        KafkaConnectS2IFromClasspathYaml cluster = element.getAnnotation(KafkaConnectS2IFromClasspathYaml.class);
+        if (cluster != null) {
+            String[] resources = cluster.value().length == 0 ? new String[]{classpathResourceName(element)} : cluster.value();
+            for (String resource : resources) {
+                // use the example kafka-ephemeral as a template, but modify it according to the annotation
+                String yaml = TestUtils.readResource(testClass(element), resource);
+                KafkaConnectAssembly kafkaAssembly = TestUtils.fromYamlString(yaml, KafkaConnectAssembly.class);
+                String clusterName = kafkaAssembly.getMetadata().getName();
+                final String deploymentName = clusterName + "-connect";
+                last = new Bracket(last, new ResourceAction()
+                        .getDep(deploymentName)
+                        .getPo(deploymentName + ".*")
+                        .logs(deploymentName + ".*", null)) {
+                    @Override
+                    protected void before() {
+                        LOGGER.info("Creating connect cluster '{}' before test per @ConnectCluster annotation on {}", clusterName, name(element));
+                        // create cm
+                        kubeClient().clientWithAdmin().applyContent(yaml);
+                        // wait for deployment config
+                        kubeClient().waitForDeploymentConfig(deploymentName);
+                    }
 
-        LOGGER.info("That's all the diagnostic info, the exception {} will now propagate and the test will fail{}{}",
-                t,
-                t, System.lineSeparator(), "----------------------------------------------------------------------");
+                    @Override
+                    protected void after() {
+                        LOGGER.info("Deleting connect cluster '{}' after test per @ConnectCluster annotation on {}", clusterName, name(element));
+                        // delete cm
+                        kubeClient().clientWithAdmin().deleteContent(yaml);
+                        // wait for ss to go
+                        kubeClient().waitForResourceDeletion("deploymentConfig", deploymentName);
+                    }
+                };
+            }
+        }
+        return last;
     }
 
     private Statement withConnectClusters(Annotatable element,
@@ -488,14 +507,14 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
                 last = new Bracket(last, new ResourceAction()
                         .getDep(deploymentName)
                         .getPo(deploymentName + ".*")
-                        .logs(deploymentName + ".*")) {
+                        .logs(deploymentName + ".*", null)) {
                     @Override
                     protected void before() {
                         LOGGER.info("Creating connect cluster '{}' before test per @ConnectCluster annotation on {}", clusterName, name(element));
                         // create cm
-                        kubeClient().clientWithAdmin().createContent(yaml);
+                        kubeClient().clientWithAdmin().applyContent(yaml);
                         // wait for deployment
-                        kubeClient().waitForDeployment(deploymentName);
+                        kubeClient().waitForDeployment(deploymentName, kafkaAssembly.getSpec().getReplicas());
                     }
 
                     @Override
@@ -527,22 +546,23 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
                 final String tcDeploymentName = kafkaAssembly.getMetadata().getName() + "-topic-operator";
                 last = new Bracket(last, new ResourceAction()
                     .getPo(CO_DEPLOYMENT_NAME + ".*")
-                    .logs(CO_DEPLOYMENT_NAME + ".*")
+                    .logs(CO_DEPLOYMENT_NAME + ".*", "strimzi-cluster-operator")
                     .getDep(CO_DEPLOYMENT_NAME)
                     .getSs(kafkaStatefulSetName)
                     .getPo(kafkaStatefulSetName + ".*")
-                    .logs(kafkaStatefulSetName + ".*")
+                    .logs(kafkaStatefulSetName + ".*", "kafka")
+                    .logs(kafkaStatefulSetName + ".*", "tls-sidecar")
                     .getSs(zookeeperStatefulSetName)
                     .getPo(zookeeperStatefulSetName)
-                    .logs(zookeeperStatefulSetName + ".*")
+                    .logs(zookeeperStatefulSetName + ".*", "zookeeper")
                     .getDep(tcDeploymentName)
-                    .logs(tcDeploymentName + ".*")) {
+                    .logs(tcDeploymentName + ".*", "topic-operator")) {
 
                     @Override
                     protected void before() {
                         LOGGER.info("Creating kafka cluster '{}' before test per @KafkaCluster annotation on {}", kafkaAssembly.getMetadata().getName(), name(element));
                         // create cm
-                        kubeClient().clientWithAdmin().createContent(yaml);
+                        kubeClient().clientWithAdmin().applyContent(yaml);
                         // wait for ss
                         LOGGER.info("Waiting for Zookeeper SS");
                         kubeClient().waitForStatefulSet(zookeeperStatefulSetName, kafkaAssembly.getSpec().getZookeeper().getReplicas());
@@ -551,7 +571,7 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
                         kubeClient().waitForStatefulSet(kafkaStatefulSetName, kafkaAssembly.getSpec().getKafka().getReplicas());
                         // wait for TOs
                         LOGGER.info("Waiting for TC Deployment");
-                        kubeClient().waitForDeployment(tcDeploymentName);
+                        kubeClient().waitForDeployment(tcDeploymentName, 1);
                     }
 
                     @Override
@@ -587,7 +607,7 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
         for (ClusterOperator cc : annotations(element, ClusterOperator.class)) {
             Map<File, String> yamls = Arrays.stream(new File(CO_INSTALL_DIR).listFiles()).sorted().collect(Collectors.toMap(file -> file, f -> getContent(f, node -> {
                 // Change the docker org of the images in the 04-deployment.yaml
-                if ("08-deployment.yaml".equals(f.getName())) {
+                if ("05-Deployment-strimzi-cluster-operator.yaml".equals(f.getName())) {
                     String dockerOrg = System.getenv().getOrDefault("DOCKER_ORG", "strimzi");
                     String dockerTag = System.getenv().getOrDefault("DOCKER_TAG", "latest");
                     ObjectNode containerNode = (ObjectNode) node.get("spec").get("template").get("spec").get("containers").get(0);
@@ -625,17 +645,18 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
                     }
                 }
 
-                if ("06-role-binding-kafka.yaml".equals(f.getName())) {
+                if (f.getName().matches(".*ClusterRoleBinding.*")) {
                     String ns = annotations(element, Namespace.class).get(0).value();
                     ArrayNode subjects = (ArrayNode) node.get("subjects");
-                    JsonNodeFactory factory = new JsonNodeFactory(false);
-                    ObjectNode subject = new ObjectNode(factory);
-                    subject.put("kind", "ServiceAccount").put("name", "strimzi-kafka").put("namespace", ns);
-                    subjects.set(0, subject);
+                    ObjectNode subject = (ObjectNode) subjects.get(0);
+                    subject.put("kind", "ServiceAccount")
+                            .put("name", "strimzi-cluster-operator")
+                            .put("namespace", ns);
+                    LOGGER.info("Modified binding from {}: {}", f, node);
                 }
             }), (x, y) -> x, LinkedHashMap::new));
             last = new Bracket(last, new ResourceAction().getPo(CO_DEPLOYMENT_NAME + ".*")
-                    .logs(CO_DEPLOYMENT_NAME + ".*")
+                    .logs(CO_DEPLOYMENT_NAME + ".*", "strimzi-cluster-operator")
                     .getDep(CO_DEPLOYMENT_NAME)) {
                 Stack<String> deletable = new Stack<>();
                 @Override
@@ -643,11 +664,11 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
                     // Here we record the state of the cluster
                     LOGGER.info("Creating cluster operator {} before test per @ClusterOperator annotation on {}", cc, name(element));
                     for (Map.Entry<File, String> entry: yamls.entrySet()) {
-                        LOGGER.info("creating possible modified version of {}", entry.getKey());
+                        LOGGER.info("creating possibly modified version of {}", entry.getKey());
                         deletable.push(entry.getValue());
-                        kubeClient().clientWithAdmin().createContent(entry.getValue());
+                        kubeClient().clientWithAdmin().applyContent(entry.getValue());
                     }
-                    kubeClient().waitForDeployment(CO_DEPLOYMENT_NAME);
+                    kubeClient().waitForDeployment(CO_DEPLOYMENT_NAME, 1);
                 }
 
                 @Override
@@ -744,6 +765,7 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
                 protected void after() {
                 }
             };
+            statement = withConnectS2IClusters(testClass, statement);
             statement = withConnectClusters(testClass, statement);
             statement = withKafkaClusters(testClass, statement);
             statement = withClusterOperator(testClass, statement);
@@ -797,7 +819,7 @@ public class StrimziRunner extends BlockJUnit4ClassRunner {
                 protected void before() {
                     LOGGER.info("Creating Topic {} {}", topic.name(), name(element));
                     // create cm
-                    kubeClient().createContent(configMap);
+                    kubeClient().applyContent(configMap);
                     kubeClient().waitForResourceCreation(BaseKubeClient.CM, topic.name());
                 }
                 @Override

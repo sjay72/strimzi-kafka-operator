@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
@@ -31,14 +30,27 @@ import java.util.function.BooleanSupplier;
 
 import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assume.assumeTrue;
 
 public final class TestUtils {
 
     private static final Logger LOGGER = LogManager.getLogger(TestUtils.class);
 
+    public static final String LINE_SEPARATOR = System.getProperty("line.separator");
+
+    public static final String CRD_TOPIC = "../examples/install/topic-operator/04-Crd-kafkatopic.yaml";
+
+    public static final String CRD_KAFKA = "../examples/install/cluster-operator/04-Crd-kafka.yaml";
+
+    public static final String CRD_KAFKA_CONNECT = "../examples/install/cluster-operator/04-Crd-kafkaconnect.yaml";
+
+    public static final String CRD_KAFKA_CONNECT_S2I = "../examples/install/cluster-operator/04-Crd-kafkaconnects2i.yaml";
+
     private TestUtils() {
         // All static methods
     }
+
+    public static final String KAFKA_USER_CRD = "../examples/install/cluster-operator/04-Crd-kafkauser.yaml";
 
     /** Returns a Map of the given sequence of key, value pairs. */
     public static <T> Map<T, T> map(T... pairs) {
@@ -96,15 +108,13 @@ public final class TestUtils {
         return sb.toString();
     }
 
-    public static JsonNode yamlFileToJSON(String relativeFilePath) {
-        JsonNode node = null;
+    public static String getFileAsString(String filePath) {
         try {
-            YAMLMapper mapper = new YAMLMapper();
-            node = mapper.readTree(new File(relativeFilePath));
+            return new String(Files.readAllBytes(Paths.get(filePath)), "UTF-8");
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.info("File with path {} not found", filePath);
         }
-        return node;
+        return "";
     }
 
     public static String changeOrgAndTag(String image, String newOrg, String newTag) {
@@ -250,5 +260,19 @@ public final class TestUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static String toJsonString(Object instance) {
+        ObjectMapper mapper = new ObjectMapper()
+                .setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        try {
+            return mapper.writeValueAsString(instance);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void assumeLinux() {
+        assumeTrue(System.getProperty("os.name").contains("nux"));
     }
 }

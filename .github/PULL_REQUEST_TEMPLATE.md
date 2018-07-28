@@ -5,6 +5,7 @@ _Select the type of your PR_
 - Bugfix
 - Enhancement / new feature
 - Refactoring
+- Documentation
 
 ### Description
 
@@ -20,4 +21,5 @@ _Please go through this checklist and make sure all applicable tasks have been d
 - [ ] Check RBAC rights for Kubernetes / OpenShift roles
 - [ ] Try your changes from Pod inside your Kubernetes and OpenShift cluster, not just locally
 - [ ] Reference relevant issue(s) and close them after merging
+- [ ] Update CHANGELOG.md
 

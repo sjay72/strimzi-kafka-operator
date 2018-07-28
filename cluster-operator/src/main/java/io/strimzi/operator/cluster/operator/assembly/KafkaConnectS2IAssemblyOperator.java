@@ -81,12 +81,12 @@ public class KafkaConnectS2IAssemblyOperator extends AbstractAssemblyOperator<Op
     }
 
     @Override
-    public void createOrUpdate(Reconciliation reconciliation, KafkaConnectS2IAssembly assemblyCm, List<Secret> assemblySecrets, Handler<AsyncResult<Void>> handler) {
+    public void createOrUpdate(Reconciliation reconciliation, KafkaConnectS2IAssembly kafkaConnectS2IAssembly, List<Secret> assemblySecrets, Handler<AsyncResult<Void>> handler) {
         String namespace = reconciliation.namespace();
         if (isOpenShift) {
             KafkaConnectS2ICluster connect;
             try {
-                connect = KafkaConnectS2ICluster.fromCrd(assemblyCm);
+                connect = KafkaConnectS2ICluster.fromCrd(kafkaConnectS2IAssembly);
             } catch (Exception e) {
                 handler.handle(Future.failedFuture(e));
                 return;
@@ -98,7 +98,7 @@ public class KafkaConnectS2IAssemblyOperator extends AbstractAssemblyOperator<Op
                     null);
 
             deploymentConfigOperations.scaleDown(namespace, connect.getName(), connect.getReplicas())
-                    .compose(scale -> serviceOperations.reconcile(namespace, connect.getName(), connect.generateService()))
+                    .compose(scale -> serviceOperations.reconcile(namespace, connect.getServiceName(), connect.generateService()))
                     .compose(i -> configMapOperations.reconcile(namespace, connect.getAncillaryConfigName(), logAndMetricsConfigMap))
                     .compose(i -> deploymentConfigOperations.reconcile(namespace, connect.getName(), connect.generateDeploymentConfig()))
                     .compose(i -> imagesStreamOperations.reconcile(namespace, connect.getSourceImageStreamName(), connect.generateSourceImageStream()))
@@ -119,7 +119,7 @@ public class KafkaConnectS2IAssemblyOperator extends AbstractAssemblyOperator<Op
             String assemblyName = reconciliation.assemblyName();
             String clusterName = KafkaConnectS2ICluster.kafkaConnectClusterName(assemblyName);
 
-            CompositeFuture.join(serviceOperations.reconcile(namespace, clusterName, null),
+            CompositeFuture.join(serviceOperations.reconcile(namespace, KafkaConnectS2ICluster.serviceName(assemblyName), null),
                 configMapOperations.reconcile(namespace, KafkaConnectS2ICluster.logAndMetricsConfigName(assemblyName), null),
                 deploymentConfigOperations.reconcile(namespace, clusterName, null),
                 imagesStreamOperations.reconcile(namespace, KafkaConnectS2ICluster.getSourceImageStreamName(clusterName), null),
@@ -132,9 +132,8 @@ public class KafkaConnectS2IAssemblyOperator extends AbstractAssemblyOperator<Op
     }
 
     @Override
-    protected List<HasMetadata> getResources(String namespace) {
+    protected List<HasMetadata> getResources(String namespace, Labels selector) {
         List<HasMetadata> result = new ArrayList<>();
-        Labels selector = Labels.forType(AssemblyType.CONNECT_S2I);
         result.addAll(serviceOperations.list(namespace, selector));
         result.addAll(deploymentConfigOperations.list(namespace, selector));
         result.addAll(imagesStreamOperations.list(namespace, selector));
